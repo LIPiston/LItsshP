@@ -85,8 +85,43 @@ Python (`app/style.py`) so no C++ toolchain is needed.
 | `Ctrl+R` | reconnect the active session |
 | `Ctrl+Shift+R` | reload hosts from disk |
 | `Ctrl+Shift+C` / `Ctrl+Shift+V` | copy selection / paste |
+| `Ctrl+Shift+A` | select the visible screen |
+| `Ctrl+Shift+E` | focus the command composer |
 | `Shift+PgUp` / `Shift+PgDn` | scroll back / forward (bare PgUp/PgDn go to the app) |
 | `Ctrl+Home` / `Ctrl+End` | top of scrollback / live view |
+
+`Ctrl+C` alone is never intercepted while it could be SIGINT; only
+`Ctrl+Shift+C` copies. Right-clicking the terminal offers Copy / Paste /
+Select all / Clear selection, and keeps passing the click to vim, tmux and
+friends when they are tracking the mouse (`Shift`+right-click always shows the
+app menu).
+
+The sidebar header doubles as the title bar: drag it to move the window,
+double-click to maximize.
+
+### Command composer
+
+A strip under the terminal holds a command (or a short block of commands) that
+can be prepared while a session is busy. It does not intercept normal typing —
+keys still go to the terminal unless the field has focus. Enter inserts a
+newline, `Ctrl+Enter` sends, and `Ctrl+Up` / `Ctrl+Down` recall earlier entries.
+Toggle it from the keyboard icon in the tab strip, with `Ctrl+Shift+E`, or in
+Settings.
+
+Sent lines are typed to the shell exactly as if entered by hand, so line
+continuations and multi-line blocks behave normally instead of sitting in a
+paste buffer.
+
+### Transfer progress
+
+The tab strip shows a live bar with the current transfer's route
+(`this PC → host` or `host → this PC`), a percentage, and a running count. The
+`swap_vert` icon opens a list of transfers in flight plus the recent history,
+each with the same route label.
+
+Progress is scraped from sftp's own meter: transfers run under a pseudoterminal
+because sftp only draws that meter when it owns a terminal. Metadata calls still
+use clean batch mode.
 
 Inside the terminal, `Shift` overrides mouse reporting so you can always select
 text while a full-screen app (vim, htop, tmux) is grabbing the mouse.
@@ -130,7 +165,7 @@ app/
   screen.py          pyte screen subclass: scrollback, alt screen, mouse modes
   terminal_model.py  grid → QImage renderer, key/mouse input, selection
   terminal_theme.py  terminal palette derived from the Material scheme
-  sftp_client.py     batch-mode sftp for the transfer window (listing, upload…)
+  sftp_client.py     batch sftp for metadata, PTY-driven transfers with progress
   style.py           Python port of the library's StyleManager / ColorHelper
   qml/               Main, HostSidebar, Workspace, TerminalPane, TransferWindow…
 third_party/md3/     vendored material-components-qml QML module
