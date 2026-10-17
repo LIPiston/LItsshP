@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Local UI state and scratch artefacts
+state.json
+*.log
+
+# Stray file created by an early host-key probe
+NUL
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
