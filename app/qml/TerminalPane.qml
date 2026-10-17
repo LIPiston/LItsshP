@@ -22,6 +22,18 @@ Item {
 
     function takeFocus() { surface.forceActiveFocus() }
 
+    // Window-level shortcuts (Ctrl+Shift+C/V) resolve through these; keeping
+    // them on the pane means the shortcut does not need to know where the
+    // terminal model lives.
+    function copySelection() {
+        if (!root.model) return
+        if (!root.model.copySelectionIfAny())
+            App.toast("Select some text first")
+    }
+    function pasteClipboard() { if (root.model) root.model.pasteClipboard() }
+    function selectAll() { if (root.model) root.model.selectAll() }
+    function hasSelection() { return root.model !== null && root.model.hasSelection }
+
     Component.onCompleted: Qt.callLater(takeFocus)
     onFocusedChanged: if (focused) Qt.callLater(takeFocus)
     onModelChanged: Qt.callLater(syncViewport)
@@ -66,6 +78,14 @@ Item {
                 pressX = e.x
                 pressY = e.y
                 root.model.mousePress(e.x, e.y, e.button, e.modifiers)
+                // Right click opens our menu unless the app is tracking the
+                // mouse; then the press was forwarded above and a popup would
+                // fight vim's own context menu. Shift always forces ours.
+                if (e.button === Qt.RightButton) {
+                    var appOwnsMouse = root.model.mouseReporting
+                                       && !(e.modifiers & Qt.ShiftModifier)
+                    if (!appOwnsMouse) paneMenu.open(surface, e.x, e.y)
+                }
             }
             onPositionChanged: (e) => {
                 if (root.model) root.model.mouseMove(e.x, e.y, e.buttons, e.modifiers)
@@ -84,6 +104,23 @@ Item {
         Keys.onPressed: (event) => {
             if (!root.model) return
             var page = Math.max(1, root.model.rows - 1)
+            var ctrl = (event.modifiers & Qt.ControlModifier) !== 0
+            var shift = (event.modifiers & Qt.ShiftModifier) !== 0
+            // Ctrl+Shift+C / Ctrl+Shift+V are the terminal copy/paste bindings
+            // (Ctrl+C alone must stay SIGINT, Ctrl+V stays literal input).
+            // They are handled here as well as in the window shortcut so the
+            // key never reaches handleKey(), which would send a control byte.
+            if (ctrl && shift) {
+                if (event.key === Qt.Key_C) {
+                    root.copySelection(); event.accepted = true; return
+                }
+                if (event.key === Qt.Key_V) {
+                    root.pasteClipboard(); event.accepted = true; return
+                }
+                if (event.key === Qt.Key_A) {
+                    root.selectAll(); event.accepted = true; return
+                }
+            }
             // Shift is the escape hatch for scrollback; a bare PgUp/PgDn has to
             // reach the application so vim, less and tmux keep paging.
             if (event.modifiers & Qt.ShiftModifier) {
@@ -113,6 +150,28 @@ Item {
         onWidthChanged: root.syncViewport()
         onHeightChanged: root.syncViewport()
         Component.onCompleted: Qt.callLater(root.syncViewport)
+    }
+
+    // Full terminal selection semantics need the model, so "Select all" is a
+    // model call rather than a QML loop over rows.
+    Menu {
+        id: paneMenu
+        model: [
+            { text: "Copy", icon: "content_copy",
+              enabled: root.model !== null && root.model.hasSelection,
+              action: function() {
+                  if (root.model && !root.model.copySelectionIfAny())
+                      App.toast("Nothing is selected")
+              } },
+            { text: "Paste", icon: "content_paste",
+              action: function() { if (root.model) root.model.pasteClipboard() } },
+            { type: "separator" },
+            { text: "Select all", icon: "select_all",
+              action: function() { if (root.model) root.model.selectAll() } },
+            { text: "Clear selection", icon: "deselect",
+              enabled: root.model !== null && root.model.hasSelection,
+              action: function() { if (root.model) root.model.clearSelection() } }
+        ]
     }
 
     // Overlay for terminated sessions; scrollback stays readable underneath.

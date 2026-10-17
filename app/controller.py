@@ -24,6 +24,7 @@ DEFAULT_SETTINGS = {
     "sidebarVisible": True,
     "confirmClose": True,
     "copyOnSelect": True,
+    "composerVisible": True,   # command composer strip under the terminal
     "terminalTheme": "match",  # match | classic
     "lastSession": "",
 }
@@ -55,6 +56,8 @@ class AppController(QObject):
     settingsChanged = Signal()
     toast = Signal(str)
     terminalColorsChanged = Signal()
+    transferProgressChanged = Signal()
+    transferHistoryChanged = Signal()
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -65,6 +68,9 @@ class AppController(QObject):
         self._active = -1
         self._settings = dict(DEFAULT_SETTINGS)
         self._images = TerminalImageProvider()
+        self._transfers: dict[object, dict] = {}
+        self._transfer_log: list[dict] = []
+        self._transfer_seq = 0
         self._load_state()
         self._refresh_hosts()
 
@@ -222,11 +228,92 @@ class AppController(QObject):
     @Slot(str, result="QVariant")
     def createSftpClient(self, alias: str) -> object:
         """A fresh SFTP client for the transfer window (owned by QML)."""
-        return SftpClient(alias, self)
+        client = SftpClient(alias, self)
+        client.progressChanged.connect(
+            lambda label, fraction, detail, c=client: self._on_transfer_progress(
+                c, label, fraction, detail))
+        client.operationDone.connect(
+            lambda what, ok, message, c=client: self._on_transfer_done(
+                c, what, ok, message))
+        return client
+
+    def _on_transfer_progress(self, client, label: str, fraction: float,
+                              detail: str) -> None:
+        entry = self._transfers.get(client)
+        if entry is None:
+            self._transfer_seq += 1
+            entry = {"id": self._transfer_seq, "alias": client.alias,
+                     "direction": label, "route": _route(client.alias, label),
+                     "fraction": 0.0, "detail": detail,
+                     "started": time.time(), "status": "running"}
+            self._transfers[client] = entry
+        entry["direction"] = label
+        entry["fraction"] = float(fraction)
+        entry["detail"] = detail
+        self.transferProgressChanged.emit()
+
+    def _on_transfer_done(self, client, what: str, ok: bool, message: str) -> None:
+        entry = self._transfers.pop(client, None)
+        if entry is not None:
+            entry["status"] = "done" if ok else "failed"
+            entry["fraction"] = 1.0 if ok else entry["fraction"]
+            entry["error"] = "" if ok else (message.split("\n")[0] if message else "")
+            self._transfer_log.insert(0, entry)
+            del self._transfer_log[40:]
+            self.transferHistoryChanged.emit()
+        self.transferProgressChanged.emit()
+
+    def _get_transfers(self) -> list:
+        return [
+            {
+                "id": t["id"],
+                "alias": t["alias"],
+                "label": t["direction"],
+                "route": t["route"],
+                "fraction": max(0.0, min(1.0, t["fraction"])),
+                "detail": t["detail"],
+            }
+            for t in self._transfers.values()
+        ]
+
+    transfers = Property("QVariantList", _get_transfers, notify=transferProgressChanged)
+
+    def _get_transfer_active(self) -> bool:
+        return bool(self._transfers)
+
+    transferActive = Property(bool, _get_transfer_active, notify=transferProgressChanged)
+
+    def _get_transfer_history(self) -> list:
+        return [
+            {
+                "id": t["id"],
+                "alias": t["alias"],
+                "label": t["direction"],
+                "route": t["route"],
+                "status": t["status"],
+                "detail": t.get("error") or t["detail"],
+                "ago": _ago(t["started"]),
+            }
+            for t in self._transfer_log
+        ]
+
+    transferHistory = Property("QVariantList", _get_transfer_history,
+                               notify=transferHistoryChanged)
+
+    def _get_transfer_count(self) -> int:
+        return len(self._transfers)
+
+    transferCount = Property(int, _get_transfer_count, notify=transferProgressChanged)
 
     @Slot(result=str)
     def localHome(self) -> str:
         return str(paths.home())
+
+    @Slot("QVariantList", result="QVariantList")
+    def localSizes(self, paths_in: list) -> list:
+        """Byte sizes for a local selection, so transfers can report a total."""
+        from .sftp_client import local_size
+        return [local_size(str(p)) for p in paths_in]
 
     @Slot(str, result="QVariantList")
     def listLocal(self, path: str) -> list:
@@ -374,6 +461,20 @@ class AppController(QObject):
             return self._tabs[index].model
         return None
 
+    def _get_active_model(self) -> object:
+        """Terminal model of the selected tab, or None.
+
+        Exposed as a notifying property so QML bindings (the command composer)
+        re-resolve when tabs open, close or the selection moves. A plain Slot
+        would not be re-evaluated, since slots carry no change notification.
+        """
+        if 0 <= self._active < len(self._tabs):
+            return self._tabs[self._active].model
+        return None
+
+    activeModel = Property("QVariant", _get_active_model,
+                           notify=activeTabChanged)
+
     def _start(self, tab: Session) -> None:
         if tab not in self._tabs or tab.pty.running:
             return
@@ -504,6 +605,28 @@ class AppController(QObject):
             tab.pty.stop()
         self._tabs.clear()
         self._save_state()
+
+
+def _route(alias: str, direction: str) -> str:
+    """Human-readable path for a transfer: ``A → B`` / ``B → this PC``.
+
+    Uploads read as the remote host pulling from this machine, downloads as
+    the host sending to it, so the arrow always points at the destination.
+    """
+    if direction == "Download":
+        return f"{alias} → this PC"
+    return f"this PC → {alias}"
+
+
+def _ago(started: float) -> str:
+    delta = max(0.0, time.time() - started)
+    if delta < 60:
+        return "just now"
+    if delta < 3600:
+        return f"{int(delta // 60)} min ago"
+    if delta < 86400:
+        return f"{int(delta // 3600)} h ago"
+    return f"{int(delta // 86400)} d ago"
 
 
 def _join_groups(value) -> str:

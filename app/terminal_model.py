@@ -55,6 +55,8 @@ class TerminalModel(QObject):
     titleChanged = Signal()
     gridChanged = Signal()
     sessionExited = Signal(int)
+    selectionChanged = Signal()
+    activityChanged = Signal()
 
     def __init__(self, session_id: int, parent: QObject | None = None):
         super().__init__(parent)
@@ -116,6 +118,13 @@ class TerminalModel(QObject):
         self._state_poll.setInterval(120)
         self._state_poll.timeout.connect(self._poll_pty)
 
+        # `idle` flips on a timer rather than on data, because the transition
+        # happens by the absence of output: nothing else would fire a signal.
+        self._idle_state = True
+        self._idle_timer = QTimer(self)
+        self._idle_timer.setInterval(300)
+        self._idle_timer.timeout.connect(self._poll_idle)
+
     # -------------------------------------------------------------- lifecycle
 
     def attachPty(self, pty) -> None:
@@ -124,11 +133,21 @@ class TerminalModel(QObject):
         pty.exited.connect(self._on_exit)
         self._state_poll.start()
         self._blink_timer.start()
+        self._last_output = time.monotonic()
+        self._idle_state = False
+        self._idle_timer.start()
 
     def detachPty(self) -> None:
         self._state_poll.stop()
         self._blink_timer.stop()
+        self._idle_timer.stop()
         self._pty = None
+
+    def _poll_idle(self) -> None:
+        idle = self._get_idle()
+        if idle != self._idle_state:
+            self._idle_state = idle
+            self.activityChanged.emit()
 
     def _poll_pty(self) -> None:
         if self._pty is None:
@@ -167,6 +186,12 @@ class TerminalModel(QObject):
 
     altScreen = Property(bool, _get_alt, notify=gridChanged)
 
+    def _get_mouse_reporting(self) -> bool:
+        """Whether the running app is tracking the mouse (vim, tmux, htop)."""
+        return self._screen.mouse_mode != "off"
+
+    mouseReporting = Property(bool, _get_mouse_reporting, notify=gridChanged)
+
     def _get_history(self) -> int:
         return self._screen.history_size
 
@@ -180,7 +205,17 @@ class TerminalModel(QObject):
     def _get_has_selection(self) -> bool:
         return bool(self._selection_text())
 
-    hasSelection = Property(bool, _get_has_selection, notify=sourceChanged)
+    hasSelection = Property(bool, _get_has_selection, notify=selectionChanged)
+
+    def _get_idle(self) -> bool:
+        """True when the session has produced no output for a moment.
+
+        Drives the composer's "send" affordance; it is advisory only, since a
+        shell at a prompt that is busy running a command also looks idle.
+        """
+        return (time.monotonic() - self._last_output) > 0.35
+
+    idle = Property(bool, _get_idle, notify=activityChanged)
 
     # ------------------------------------------------------------------ input
 
@@ -196,6 +231,7 @@ class TerminalModel(QObject):
         if self._scrollback:
             self._scrollback = min(self._screen.history_size, self._scrollback + added)
         self._schedule_render(full=True)
+        self.activityChanged.emit()
 
         title = self._screen.title
         if title and title != self._title and "conhost.exe" not in title:
@@ -319,6 +355,7 @@ class TerminalModel(QObject):
             self._selection_anchor = (col, row)
             self._selection_cursor = (col, row)
             self._dragging = True
+            self.selectionChanged.emit()
         elif button == Qt.MiddleButton.value:
             self.pasteClipboard()
         self._schedule_render()
@@ -350,6 +387,7 @@ class TerminalModel(QObject):
             else:
                 self._selection_anchor = None
                 self._selection_cursor = None
+            self.selectionChanged.emit()
             self._schedule_render()
 
     @Slot(float, float)
@@ -368,6 +406,7 @@ class TerminalModel(QObject):
             end += 1
         self._selection_anchor = (start, row)
         self._selection_cursor = (end + 1, row)
+        self.selectionChanged.emit()
         self._schedule_render()
         if self._copy_on_select:
             self.copySelection()
@@ -420,11 +459,37 @@ class TerminalModel(QObject):
         if text:
             QGuiApplication.clipboard().setText(text)
 
+    @Slot(result=bool)
+    def copySelectionIfAny(self) -> bool:
+        """Copy and report whether anything was copied (for UI feedback)."""
+        text = self._selection_text()
+        if not text:
+            return False
+        QGuiApplication.clipboard().setText(text)
+        return True
+
     @Slot()
     def clearSelection(self) -> None:
         self._selection_anchor = None
         self._selection_cursor = None
+        self.selectionChanged.emit()
         self._schedule_render()
+
+    @Slot()
+    def selectAll(self) -> None:
+        """Select the whole visible viewport (not the entire scrollback)."""
+        rows = self._screen.lines
+        last = max(0, rows - 1)
+        self._selection_anchor = (0, 0)
+        self._selection_cursor = (max(0, self._screen.columns - 1), last)
+        self.selectionChanged.emit()
+        self._schedule_render()
+        if self._copy_on_select:
+            self.copySelection()
+
+    @Slot(result=bool)
+    def hasClipboardText(self) -> bool:
+        return bool(QGuiApplication.clipboard().text())
 
     @Slot()
     def pasteClipboard(self) -> None:
@@ -434,6 +499,34 @@ class TerminalModel(QObject):
         if self._screen.bracketed_paste:
             text = "\x1b[200~" + text + "\x1b[201~"
         self._send(text)
+
+    @Slot(str)
+    def sendText(self, text: str) -> None:
+        """Send text verbatim to the session, honouring bracketed paste."""
+        if not text:
+            return
+        if self._screen.bracketed_paste:
+            text = "\x1b[200~" + text + "\x1b[201~"
+        self._send(text)
+
+    @Slot(str, bool)
+    def runCommand(self, text: str, clear_first: bool = False) -> None:
+        """Send a composed block as if each line had been typed and entered.
+
+        Deliberately *not* bracketed paste: the composer exists to queue work
+        ahead of time, so every line has to execute. A bracketed paste would
+        leave the block sitting at the prompt until someone pressed Enter.
+        Line continuations still behave normally, because the shell sees the
+        same sequence it would from a keyboard.
+        """
+        if not text:
+            return
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
+        if not normalized:
+            return
+        if clear_first:
+            normalized = "\x15" + normalized
+        self._send(normalized.replace("\n", "\r") + "\r")
 
     @Slot(bool)
     def setCopyOnSelect(self, enabled: bool) -> None:

@@ -269,6 +269,11 @@ Item {
                         checked: root.settings.copyOnSelect !== false
                         onToggled: App.setSetting("copyOnSelect", checked)
                     }
+                    SettingSwitch {
+                        label: "Show the command composer"
+                        checked: root.settings.composerVisible !== false
+                        onToggled: App.setSetting("composerVisible", checked)
+                    }
 
                     SectionLabel { text: "Configuration" }
 

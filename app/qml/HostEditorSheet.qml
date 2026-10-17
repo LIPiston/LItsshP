@@ -377,24 +377,33 @@ Item {
                         border.width: 1
                         border.color: Theme.color.outlineVariant
 
-                        // Plain Flickable + TextEdit rather than
-                        // Controls.ScrollView/TextArea: on this platform the
-                        // TextArea paints no text at all.
-                        Flickable {
-                            id: rawFlick
+                        // A plain TextEdit inside a clipping Item, with the
+                        // scroll offset applied to `y` by hand. Qt's Flickable
+                        // takes a different scene-graph path when it both
+                        // clips and has scrollable content, and on this D3D11
+                        // backend a TextEdit inside it paints nothing at all
+                        // (reproduced with a minimal case). A TextEdit that is
+                        // simply clipped renders normally.
+                        Item {
+                            id: rawViewport
                             anchors.fill: parent
                             anchors.margins: 7
                             clip: true
-                            boundsBehavior: Flickable.StopAtBounds
-                            flickableDirection: Flickable.VerticalFlick
-                            contentWidth: width
-                            contentHeight: Math.max(rawArea.implicitHeight + 12, height)
+
+                            property real scrollOffset: 0
+                            property real contentHeight: rawArea.implicitHeight + 12
+                            readonly property real maxOffset: Math.max(0, contentHeight - height)
+
+                            function scrollBy(delta) {
+                                var next = Math.max(0, Math.min(maxOffset, scrollOffset + delta))
+                                scrollOffset = next
+                            }
 
                             TextEdit {
                                 id: rawArea
                                 x: 6
-                                y: 6
-                                width: rawFlick.width - 12
+                                y: 6 - rawViewport.scrollOffset
+                                width: rawViewport.width - 12
                                 font.family: "Cascadia Mono"
                                 font.pixelSize: 12
                                 color: Theme.color.onSurfaceColor
@@ -402,10 +411,44 @@ Item {
                                 selectedTextColor: Theme.color.onPrimaryColor
                                 selectByMouse: true
                                 wrapMode: TextEdit.NoWrap
+
+                                onCursorPositionChanged: {
+                                    var caret = cursorRectangle
+                                    var top = rawViewport.scrollOffset
+                                    var bottom = top + rawViewport.height
+                                    if (caret.y < top)
+                                        rawViewport.scrollOffset = Math.max(0, caret.y - 4)
+                                    else if (caret.y + caret.height > bottom)
+                                        rawViewport.scrollOffset =
+                                            Math.min(rawViewport.maxOffset,
+                                                     caret.y + caret.height - rawViewport.height + 4)
+                                }
                             }
 
-                            Controls.ScrollBar.vertical: Controls.ScrollBar {
-                                policy: Controls.ScrollBar.AsNeeded
+                            MouseArea {
+                                anchors.fill: parent
+                                acceptedButtons: Qt.NoButton
+                                onWheel: (e) => {
+                                    rawViewport.scrollBy(-e.angleDelta.y / 3)
+                                }
+                            }
+
+                            // Thin scroll indicator, sized from the ratio so it
+                            // stays proportional without an attached ScrollBar.
+                            Rectangle {
+                                visible: rawViewport.maxOffset > 0
+                                x: rawViewport.width - 4
+                                width: 3
+                                radius: 2
+                                color: Theme.color.outline
+                                opacity: 0.5
+                                readonly property real ratio:
+                                    rawViewport.height / Math.max(rawViewport.height,
+                                                                  rawViewport.contentHeight)
+                                height: Math.max(24, rawViewport.height * ratio)
+                                y: (rawViewport.height - height)
+                                   * (rawViewport.maxOffset > 0
+                                      ? rawViewport.scrollOffset / rawViewport.maxOffset : 0)
                             }
                         }
                     }

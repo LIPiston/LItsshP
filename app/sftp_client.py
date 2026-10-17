@@ -6,13 +6,19 @@ extra binaries on the server is not much use, so the transfer window speaks
 plain SFTP through the OpenSSH client instead: it honours the same
 ``~/.ssh/config`` entry, including ProxyJump, IdentityFile and agent settings.
 
-The protocol is driven with OpenSSH's batch mode (``sftp -b -``), one command
-per line, so no third-party SSH library is needed.
+Two execution paths are used:
+
+* metadata (``pwd``, ``ls``, ``rm``, ``mkdir``, ``rename``) runs in batch mode
+  (``sftp -b -``), which produces clean, predictable output;
+* file transfers run inside a ConPTY, because sftp only draws its progress
+  meter when it owns a terminal. The meter lines are scraped for percentages so
+  the UI can show real progress.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -20,7 +26,19 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
+from winpty import PTY
+from winpty.enums import Backend
+
 from . import paths
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Za-z0-9]")
+# "name   42%    1.2MB   3.4MB/s   00:03 ETA"
+_PROGRESS_RE = re.compile(
+    r"^(?P<name>.+?)\s+(?P<pct>\d{1,3})%\s+(?P<amount>[\d.]+)\s*(?P<unit>[KMG]?)B?(?=\s)")
+_FAILURE_HINTS = ("failure", "no such file", "not found", "permission denied",
+                  "couldn't", "could not", "broken pipe", "connection closed",
+                  "connection reset", "not a directory")
+_UNITS = {"": 1, "K": 1024, "M": 1024 ** 2, "G": 1024 ** 3}
 
 
 def _quote_remote(value: str) -> str:
@@ -56,20 +74,61 @@ def find_sftp() -> str | None:
     return None
 
 
+def local_size(path: str) -> int:
+    """Total bytes of a local file or directory tree; -1 when unknown."""
+    try:
+        p = Path(path)
+        if p.is_file():
+            return p.stat().st_size
+        if p.is_dir():
+            total = 0
+            for root, _dirs, files in os.walk(p):
+                for name in files:
+                    try:
+                        total += (Path(root) / name).stat().st_size
+                    except OSError:
+                        pass
+            return total
+    except OSError:
+        pass
+    return -1
+
+
+def _human(size: float) -> str:
+    for unit, factor in (("GB", 1024 ** 3), ("MB", 1024 ** 2), ("KB", 1024)):
+        if size >= factor:
+            return f"{size / factor:.1f} {unit}"
+    return f"{int(size)} B"
+
+
 class SftpClient(QObject):
-    """Runs sftp batch commands off the GUI thread."""
+    """Runs sftp operations off the GUI thread."""
 
     listingReady = Signal(str, "QVariantList")   # path, entries
     operationDone = Signal(str, bool, str)       # description, ok, message
     failed = Signal(str)
+    progressChanged = Signal(str, float, str)    # label, fraction (-1 unknown), detail
 
     def __init__(self, alias: str, parent: QObject | None = None):
         super().__init__(parent)
         self.alias = alias
         self.home = ""
         self._busy = False
+        self._cancelled = False
+        self._lock = threading.Lock()
 
     # ------------------------------------------------------------------ helpers
+
+    @Slot()
+    def cancel(self) -> None:
+        """Stop an in-flight transfer; used when the window closes."""
+        self._cancelled = True
+        pty = getattr(self, "_transfer_pty", None)
+        if pty is not None:
+            try:
+                pty.write("\x03")
+            except Exception:
+                pass
 
     def _command(self) -> list[str] | None:
         binary = find_sftp()
@@ -174,27 +233,26 @@ class SftpClient(QObject):
             return
         self.listingReady.emit(path, self._parse_ls(out))
 
-    @Slot(list, str)
-    def upload(self, local_paths: list, remote_dir: str) -> None:
-        threading.Thread(target=self._upload, args=(list(local_paths), remote_dir),
+    @Slot(list, str, "QVariantList")
+    def upload(self, local_paths: list, remote_dir: str, sizes: list) -> None:
+        threading.Thread(target=self._upload,
+                         args=(list(local_paths), remote_dir, list(sizes)),
                          daemon=True).start()
 
-    def _upload(self, local_paths: list[str], remote_dir: str) -> None:
+    def _upload(self, local_paths: list[str], remote_dir: str, sizes: list) -> None:
         # -R makes directories transfer recursively and is a no-op for plain
         # files, so selection can mix both without extra stat round-trips.
         lines = ["put -R " + _quote_local(p) + " " + _quote_remote(remote_dir)
                  for p in local_paths]
-        code, out = self._run(lines, timeout=600.0)
-        lowered = out.lower()
-        ok = code == 0 and "not found" not in lowered and "no such file" not in lowered
-        self.operationDone.emit("Upload", ok, out.strip())
+        self._transfer("Upload", lines, _total(sizes))
 
-    @Slot(list, str)
-    def download(self, remote_paths: list, local_dir: str) -> None:
-        threading.Thread(target=self._download, args=(list(remote_paths), local_dir),
+    @Slot(list, str, "QVariantList")
+    def download(self, remote_paths: list, local_dir: str, sizes: list) -> None:
+        threading.Thread(target=self._download,
+                         args=(list(remote_paths), local_dir, list(sizes)),
                          daemon=True).start()
 
-    def _download(self, remote_paths: list[str], local_dir: str) -> None:
+    def _download(self, remote_paths: list[str], local_dir: str, sizes: list) -> None:
         # `get ... <dir>` writes into <dir> and refuses to create it, so make
         # sure the destination exists before handing the batch to sftp.
         try:
@@ -204,10 +262,91 @@ class SftpClient(QObject):
             return
         lines = ["get -R " + _quote_remote(p) + " " + _quote_local(local_dir)
                  for p in remote_paths]
-        code, out = self._run(lines, timeout=600.0)
-        lowered = out.lower()
-        ok = code == 0 and "not found" not in lowered and "no such file" not in lowered
-        self.operationDone.emit("Download", ok, out.strip())
+        self._transfer("Download", lines, _total(sizes))
+
+    # --------------------------------------------------------------- transfers
+
+    def _transfer(self, label: str, lines: list[str], total: int) -> None:
+        binary = find_sftp()
+        if not binary:
+            self.operationDone.emit(label, False, "sftp was not found.")
+            return
+
+        self._cancelled = False
+        argv = [binary]
+        if os.environ.get("LITSSHP_CONFIG"):
+            argv += ["-F", str(paths.ssh_config())]
+        argv.append(self.alias)
+
+        env = dict(os.environ)
+        env_str = "\0".join(f"{k}={v}" for k, v in env.items()) + "\0"
+        try:
+            pty = PTY(50, 200, backend=Backend.ConPTY)
+            spawned = pty.spawn(argv[0], " " + subprocess.list2cmdline(argv[1:]),
+                                cwd=None, env=env_str)
+        except Exception as exc:  # noqa: BLE001 - surfaced in the UI
+            self.operationDone.emit(label, False, str(exc))
+            return
+        if not spawned:
+            self.operationDone.emit(label, False, "Could not start sftp.")
+            return
+
+        self._transfer_pty = pty
+        state = _MeterState(label, total, self.progressChanged)
+        stop = threading.Event()
+
+        def read_loop() -> None:
+            while not stop.is_set() and not self._cancelled:
+                try:
+                    chunk = pty.read(True)
+                except Exception:
+                    break
+                if not chunk:
+                    break
+                state.feed(chunk)
+
+        reader = threading.Thread(target=read_loop, daemon=True)
+        reader.start()
+
+        # ConPTY buffers typed input, so the whole script can be queued before
+        # the server prompt appears.
+        script = "\r".join(lines) + "\rbye\r"
+        try:
+            pty.write(script)
+        except Exception as exc:  # noqa: BLE001
+            stop.set()
+            self.operationDone.emit(label, False, str(exc))
+            return
+
+        deadline = 900.0
+        waited = 0.0
+        while waited < deadline and not self._cancelled:
+            try:
+                if not pty.isalive():
+                    break
+            except Exception:
+                break
+            threading.Event().wait(0.05)
+            waited += 0.05
+
+        stop.set()
+        if self._cancelled:
+            try:
+                pty.cancel_io()
+            except Exception:
+                pass
+            self.operationDone.emit(label, False, "Cancelled")
+            return
+
+        status = 0
+        try:
+            status = pty.get_exitstatus() or 0
+        except Exception:
+            status = 0
+        ok = status == 0 and not state.failed
+        if ok:
+            self.progressChanged.emit(label, 1.0, state.summary())
+        self.operationDone.emit(label, ok, state.message(ok))
 
     @Slot(list)
     def remove(self, remote_paths: list) -> None:
@@ -236,3 +375,97 @@ class SftpClient(QObject):
         code, out = self._run(
             ["rename " + _quote_remote(old_path) + " " + _quote_remote(new_path)])
         self.operationDone.emit("Rename", code == 0, out.strip())
+
+
+def _total(sizes: list) -> int:
+    """Combined size of the selection, or -1 if any part is unknown."""
+    total = 0
+    for value in sizes:
+        try:
+            size = int(value)
+        except (TypeError, ValueError):
+            size = -1
+        if size < 0:
+            return -1
+        total += size
+    return total
+
+
+class _MeterState:
+    """Scrapes sftp's progress meter out of a terminal byte stream."""
+
+    def __init__(self, label: str, total: int, signal):
+        self.label = label
+        self.total = total
+        self._signal = signal
+        self._buf = ""
+        self._log: list[str] = []
+        self._done = 0
+        self._counted = False
+        self._last_pct = 0
+        self._last_name = ""
+        self._files = 0
+        self.failed = False
+        self._failure = ""
+
+    def feed(self, chunk: str) -> None:
+        self._buf += chunk
+        parts = re.split(r"[\r\n]", self._buf)
+        self._buf = parts.pop()
+        for raw in parts:
+            self._line(raw)
+
+    def _line(self, raw: str) -> None:
+        line = _ANSI_RE.sub("", raw).strip()
+        if not line:
+            return
+        self._log.append(line)
+        if len(self._log) > 200:
+            del self._log[:100]
+
+        lowered = line.lower()
+        if lowered.startswith(("uploading ", "downloading ")):
+            self._files += 1
+            self._counted = False
+            self._last_pct = 0
+            return
+        if any(hint in lowered for hint in _FAILURE_HINTS) and "sftp>" not in lowered:
+            self.failed = True
+            self._failure = line
+
+        match = _PROGRESS_RE.match(line)
+        if not match:
+            return
+
+        pct = max(0, min(100, int(match.group("pct"))))
+        amount = float(match.group("amount")) * _UNITS.get(match.group("unit"), 1)
+        self._last_pct = pct
+        self._last_name = match.group("name").strip()
+
+        if self.total > 0:
+            fraction = (self._done + amount) / self.total
+            detail = f"{_human(min(self._done + amount, self.total))} / {_human(self.total)}"
+        else:
+            fraction = pct / 100.0
+            detail = self._last_name
+
+        if pct >= 100 and not self._counted:
+            self._done += amount
+            self._counted = True
+            if self.total > 0:
+                fraction = self._done / self.total
+                detail = f"{_human(min(self._done, self.total))} / {_human(self.total)}"
+
+        self._signal.emit(self.label, max(0.0, min(1.0, fraction)), detail)
+
+    def summary(self) -> str:
+        if self._files:
+            return f"{self._files} item{'s' if self._files != 1 else ''}"
+        return "done"
+
+    def message(self, ok: bool) -> str:
+        if ok:
+            return "\n".join(self._log[-3:])
+        if self._failure:
+            return self._failure
+        return "\n".join(self._log[-6:]) or "The transfer did not finish."

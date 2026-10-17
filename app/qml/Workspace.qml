@@ -12,6 +12,32 @@ Item {
     readonly property color hairline: c.outlineVariant
     readonly property color hoverColor: window ? window.flatHover : "#22ffffff"
 
+    // The pane QML-side shortcuts act on: Ctrl+Shift+C/V and the composer.
+    // This is a function rather than a bound property on purpose: a Repeater
+    // fills itemAt() only after its delegates are created, and a property
+    // binding that resolved to null in that window would stay null forever,
+    // because nothing in the dependency graph changes when the delegate
+    // appears.
+    function activeTerminal() {
+        if (paneRepeater.count === 0) return null
+        var idx = App.activeIndex
+        if (idx < 0 || idx >= paneRepeater.count) return null
+        return paneRepeater.itemAt(idx)
+    }
+
+    readonly property bool composerVisible: App.hasTabs
+                                             && App.settings.composerVisible !== false
+
+    // Kept here rather than inside the terminal pane so the strip survives
+    // tab switches: a queued command belongs to the window, not the session,
+    // and the last thing typed should still be there when you come back.
+    property string draft: ""
+
+    function focusComposer() {
+        if (composerVisible) composer.focusInput()
+        else root.window.openSettings()
+    }
+
     // ── Empty state ────────────────────────────────────────────────────
     ColumnLayout {
         anchors.centerIn: parent
@@ -234,12 +260,84 @@ Item {
                 tooltip: "Toggle sidebar (Ctrl+B)"
                 onActivated: App.setSetting("sidebarVisible", !(App.settings.sidebarVisible !== false))
             }
+            TransferIndicator {
+                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: implicitWidth
+                Layout.preferredHeight: implicitHeight
+                onClicked: transferPopover.toggle()
+            }
             HeaderIconButton {
-                icon: "add"
-                tooltip: "New host (Ctrl+N)"
-                onActivated: root.window.openHostEditor("")
+                icon: App.settings.composerVisible !== false ? "keyboard_hide" : "keyboard"
+                tooltip: (App.settings.composerVisible !== false ? "Hide" : "Show") + " command composer"
+                onActivated: App.setSetting("composerVisible", !(App.settings.composerVisible !== false))
+            }
+            // Opens the transfer list. The badge shows how many are running;
+            // `swap_vert` reads as "moving things between two places", which
+            // is what the panel is for.
+            Item {
+                id: transferButton
+                Layout.preferredWidth: 30
+                Layout.preferredHeight: 30
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 6
+                    color: (transferMouse.containsMouse || transferPopover.opened)
+                           ? root.hoverColor : "transparent"
+                }
+                Text {
+                    anchors.centerIn: parent
+                    text: "swap_vert"
+                    font.family: Theme.iconFont.name
+                    font.pixelSize: 17
+                    color: (App.transferActive || transferPopover.opened)
+                           ? Theme.color.primary : Theme.color.onSurfaceVariantColor
+                }
+                // Small running-count dot; also the only hint that transfers
+                // are happening when the indicator is collapsed.
+                Rectangle {
+                    visible: App.transferCount > 0
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.rightMargin: 3
+                    anchors.topMargin: 2
+                    width: Math.max(13, badgeText.implicitWidth + 6)
+                    height: 13
+                    radius: 7
+                    color: Theme.color.primary
+                    Text {
+                        id: badgeText
+                        anchors.centerIn: parent
+                        text: App.transferCount
+                        font.family: Theme.typography.labelSmall.family
+                        font.pixelSize: 8
+                        font.weight: Font.DemiBold
+                        color: Theme.color.onPrimaryColor
+                    }
+                }
+                MouseArea {
+                    id: transferMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: transferPopover.toggle()
+                }
+                ToolTip {
+                    visible: transferMouse.containsMouse && !transferPopover.opened
+                    text: "Transfers"
+                    timeout: 8000
+                }
             }
         }
+    }
+
+    // Sits above everything in the workspace so it can dim the pane below.
+    TransferPopover {
+        id: transferPopover
+        anchors.fill: parent
+        anchors.topMargin: tabBar.height
+        window: root.window
+        onTransferRequested: (alias) => root.window.openTransfer(alias)
     }
 
     // ── Terminal stack ─────────────────────────────────────────────────
@@ -248,10 +346,11 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: tabBar.bottom
-        anchors.bottom: statusBar.top
+        anchors.bottom: composer.visible ? composer.top : statusBar.top
         clip: true
 
         Repeater {
+            id: paneRepeater
             model: App.tabs
 
             delegate: TerminalPane {
@@ -264,6 +363,22 @@ Item {
                 window: root.window
                 onRequestReconnect: App.reconnectTab(index)
             }
+        }
+    }
+
+    // ── Command composer ───────────────────────────────────────────────
+    CommandComposer {
+        id: composer
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: statusBar.top
+        visible: root.composerVisible
+        // Notifying property: App.terminalModel() is a slot with no change
+        // signal, so binding to it would never re-run on tab changes.
+        model: App.activeModel
+        onEscapePressed: {
+            var pane = root.activeTerminal()
+            if (pane) pane.takeFocus()
         }
     }
 

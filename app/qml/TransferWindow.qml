@@ -22,6 +22,7 @@ Window {
     property var remoteSelection: []
     property string statusText: ""
     property bool busy: false
+    property real progress: -1
 
     width: 1080
     height: 660
@@ -41,11 +42,29 @@ Window {
         return out
     }
 
+    function selectedLocalSizes() {
+        var out = []
+        for (var i = 0; i < localSelection.length; i++) {
+            if (localSelection[i])
+                out.push(localEntries[i].isDir ? -1 : localEntries[i].size)
+        }
+        return out
+    }
+
     function selectedRemotePaths() {
         var out = []
         for (var i = 0; i < remoteSelection.length; i++) {
             if (remoteSelection[i])
                 out.push(joinRemote(remotePath, remoteEntries[i].name))
+        }
+        return out
+    }
+
+    function selectedRemoteSizes() {
+        var out = []
+        for (var i = 0; i < remoteSelection.length; i++) {
+            if (remoteSelection[i])
+                out.push(remoteEntries[i].isDir ? -1 : remoteEntries[i].size)
         }
         return out
     }
@@ -93,10 +112,23 @@ Window {
         sftp.listingReady.connect(onListing)
         sftp.operationDone.connect(onOperation)
         sftp.failed.connect(onFailure)
+        sftp.progressChanged.connect(onProgress)
         sftp.start()
         show()
         raise()
         requestActivate()
+    }
+
+    function routeFor(what) {
+        if (what === "Download") return alias + " → this PC"
+        if (what === "Upload") return "this PC → " + alias
+        return what
+    }
+
+    function onProgress(label, fraction, detail) {
+        progress = fraction
+        statusText = routeFor(label) + " · " + Math.round(fraction * 100) + "%"
+                   + (detail ? " · " + detail : "")
     }
 
     function onListing(path, entries) {
@@ -109,7 +141,8 @@ Window {
 
     function onOperation(what, ok, message) {
         busy = false
-        statusText = ok ? what + " finished" : what + " failed"
+        progress = -1
+        statusText = routeFor(what) + (ok ? " done" : " failed")
         if (!ok && message)
             statusText += " · " + message.split("\n")[0]
         refreshRemote()
@@ -141,7 +174,7 @@ Window {
         }
         busy = true
         statusText = "Uploading…"
-        sftp.upload(paths, remotePath)
+        sftp.upload(paths, remotePath, selectedLocalSizes())
     }
 
     function download() {
@@ -152,7 +185,11 @@ Window {
         }
         busy = true
         statusText = "Downloading…"
-        sftp.download(paths, localPath)
+        sftp.download(paths, localPath, selectedRemoteSizes())
+    }
+
+    onClosing: {
+        if (sftp) sftp.cancel()
     }
 
     // ── Header ─────────────────────────────────────────────────────────
@@ -326,6 +363,26 @@ Window {
             anchors.leftMargin: 16
             anchors.rightMargin: 16
             spacing: 8
+
+            // Determinate bar for the transfer in flight. A plain Rectangle
+            // because md3's LinearProgress animates its value, and this
+            // machine's render loop does not advance QML animations.
+            Item {
+                Layout.preferredWidth: 160
+                Layout.preferredHeight: 3
+                visible: transferWindow.progress >= 0
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 2
+                    color: Theme.color.surfaceContainerHighest
+                }
+                Rectangle {
+                    width: parent.width * Math.max(0, Math.min(1, transferWindow.progress))
+                    height: parent.height
+                    radius: 2
+                    color: Theme.color.primary
+                }
+            }
 
             Text {
                 text: transferWindow.statusText

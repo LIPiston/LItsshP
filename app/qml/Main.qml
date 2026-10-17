@@ -70,6 +70,18 @@ Window {
     function openPalette() { commandPalette.open() }
     function openSettings() { settingsSheet.open() }
     function focusSearch() { sidebar.focusSearch() }
+    function openTransfer(alias) { transferWindow.open(alias) }
+
+    // Frameless window: the brand block in the sidebar header doubles as the
+    // drag handle, so the title area has to forward press/drag to the window.
+    function beginWindowDrag(mouse) {
+        if (mouse.button !== Qt.LeftButton) return
+        appWindow.startSystemMove()
+    }
+    function toggleMaximized() {
+        if (appWindow.visibility === Window.Maximized) appWindow.showNormal()
+        else appWindow.showMaximized()
+    }
 
     // Deleting a host rewrites ~/.ssh/config, so it always asks first.
     function confirmDeleteHost(alias) {
@@ -214,13 +226,12 @@ Window {
     }
     Shortcut { sequences: ["Ctrl+R"]; onActivated: App.reconnectActive() }
     Shortcut { sequences: ["Ctrl+Shift+R"]; onActivated: App.refreshHosts() }
+    // Ctrl+Shift+C / Ctrl+Shift+V are handled inside TerminalPane rather than
+    // here: a window-level Shortcut would steal them from the composer and
+    // from any focused text field, and would double-fire the paste.
     Shortcut {
-        sequences: ["Ctrl+Shift+C"]
-        onActivated: if (workspace.activeTerminal) workspace.activeTerminal.copySelection()
-    }
-    Shortcut {
-        sequences: ["Ctrl+Shift+V"]
-        onActivated: if (workspace.activeTerminal) workspace.activeTerminal.pasteClipboard()
+        sequences: ["Ctrl+Shift+E"]
+        onActivated: workspace.focusComposer()
     }
 
 }

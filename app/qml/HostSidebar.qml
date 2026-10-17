@@ -36,12 +36,23 @@ Item {
     }
 
     // ── Brand + window controls ────────────────────────────────────────
+    // Doubles as the title bar: the window is frameless, so dragging here
+    // moves it (startSystemMove keeps the OS-native snap behaviour).
     Item {
         id: header
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
         height: 74
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            onPressed: (mouse) => {
+                if (root.window) root.window.beginWindowDrag(mouse)
+            }
+            onDoubleClicked: if (root.window) root.window.toggleMaximized()
+        }
 
         RowLayout {
             anchors.fill: parent
