@@ -422,11 +422,24 @@ class AppController(QObject):
         entry = self._store.host(alias)
         if entry is None:
             return {"ok": False, "error": "Host not found"}
+        return self._reveal(entry.source)
+
+    @Slot(result="QVariantMap")
+    def revealConfig(self) -> dict:
+        """Open the file manager with the main config file selected.
+
+        Settings names the config path next to an "Open folder" button; this is
+        the slot that button calls.
+        """
+        return self._reveal(str(self._store.main_path))
+
+    @staticmethod
+    def _reveal(path: str) -> dict:
         try:
             import subprocess
-            subprocess.Popen(["explorer", "/select,", entry.source])
+            subprocess.Popen(["explorer", "/select,", path])
             return {"ok": True}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 - shown in the UI
             return {"ok": False, "error": str(exc)}
 
     @Slot(result=str)
