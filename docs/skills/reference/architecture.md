@@ -12,12 +12,12 @@ on the command line.
 ```
 QML (app/qml/)
   Main ─ HostSidebar ─ Workspace ─ TerminalPane
-       ├ HostEditorSheet / SettingsSheet / CommandPalette
+       ├ HostEditorSheet / SettingsSheet / TunnelSheet / CommandPalette
        ├ TransferIndicator / TransferPopover
        └ TransferWindow (separate top-level window)
 
 Python (app/)
-  controller.py      QML-facing facade: hosts, tabs, settings, transfers
+  controller.py      QML-facing facade: hosts, tabs, settings, transfers, tunnels
   config.py          ~/.ssh/config parser + byte-preserving writer (+ Include)
   secret.py          tssh encPassword encode/decode
   paths.py           home, config, state, tssh/sftp discovery
@@ -26,6 +26,7 @@ Python (app/)
   terminal_model.py  grid → QImage, key/mouse translation, selection
   terminal_theme.py  terminal palette derived from the Material scheme
   sftp_client.py     SFTP listing (batch) and transfers (ConPTY + meter scraping)
+  tunnel.py          forward specs + one supervised `tssh -N` per host
   style.py           Python ports of md3's StyleManager / ColorHelper
   main.py            entry point: singletons, image provider, window geometry
 
@@ -107,6 +108,30 @@ detail)`. `AppController` turns each client's signals into entries for the tab
 strip indicator and the popover list, labelling them by route rather than by
 "upload"/"download". See [File transfers](../file-transfers.md).
 
+## Forwarding data path
+
+A forwarding rule is a config directive, not an app-side setting:
+
+```
+HostEditorSheet ─ saveHost(forwards) ─ config.py set_options()
+                                             |
+                                    LocalForward/RemoteForward/DynamicForward
+                                             |
+     openHost(alias) ──► tssh <alias> already applies them (no extra process)
+                                             |
+                       closeTab / session exit ──► TunnelManager.stop_session
+                                             |            |
+                                   not persistent     persistent
+                                        |                 |
+                                     released      tssh -N <alias>
+```
+
+`TunnelManager` keys on the host, not the rule, because `tssh -N <alias>` opens
+everything the alias declares. Passing an explicit `-L` alongside a config that
+already has one makes tssh bind the same port twice and log a warning while
+still exiting 0 — so the manager never adds flags and treats a forwarding
+warning in the output, not the exit code, as failure.
+
 ## Threading rules
 
 - One GUI thread owns every QObject. Worker threads in `pty_session.py` and
@@ -115,6 +140,10 @@ strip indicator and the popover list, labelling them by route rather than by
   immediately, and start a `threading.Thread`. Forgetting `@Slot` produces
   "Property 'x' is not a function" at the call site, not at import time.
 - `TerminalModel` is always mutated on the GUI thread.
+- `TunnelEntry` reuses `PtySession`, so tunnel output follows the same reader
+  thread → deque → GUI drain path as a session. Its state machine (`session`,
+  `pending`, `starting`, `running`, `failed`, `stopped`) only advances on GUI
+  thread callbacks and timers.
 
 ## Design tokens
 

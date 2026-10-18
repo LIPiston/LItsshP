@@ -22,6 +22,9 @@ do; binding to a slot is a bug (it caches the first result forever).
 | `transferActive` | `bool` | `transferProgressChanged` | any transfer running |
 | `transferCount` | `int` | `transferProgressChanged` | number running (badge) |
 | `transferHistory` | `QVariantList` | `transferHistoryChanged` | last 40 finished: adds `{status, ago}` |
+| `tunnels` | `QVariantList` | `tunnelsChanged` | one entry per host with rules: `{key, alias, state, persist, sessionIds, error, command, startedAt, rules}` |
+| `tunnelCount` | `int` | `tunnelsChanged` | number of forwarding entries (badge) |
+| `tunnelActive` | `bool` | `tunnelsChanged` | whether any entry is currently forwarding |
 
 `activeModel` exists precisely because `terminalModel(index)` is a slot. The
 composer must bind to `App.activeModel`; a binding to the slot resolves once,
@@ -35,7 +38,9 @@ during the window when the repeater has not created delegates yet, and stays
 | `host(alias)` | map | one entry from `hosts`; `{}` when absent |
 | `hostPassword(alias)` | string | decoded `encPassword` / plain `Password`, for prefilling |
 | `hostRawBlock(alias)` | string | exact text of the host's block |
-| `saveHost(fields)` | `{ok, alias}` or `{ok:false, error}` | create when `originalAlias` is empty, else update; renames the tab |
+| `saveHost(fields)` | `{ok, alias}` or `{ok:false, error}` | create when `originalAlias` is empty, else update; renames the tab. `fields.forwards` is `[{kind, spec}]` and replaces the host's own rules |
+| `hostForwards(alias)` | `{own, inherited, disabled}` | `own` is editable; `inherited` entries carry a `source` label and must not be written back |
+| `forwardPreview(kind, spec)` | `{valid, bind, port, target_host, target_port, error, label}` | inline validation; an invalid spec is still saveable, only the warning is advisory |
 | `duplicateHost(alias)` | `{ok, alias}` | copies options into a new block in the main file |
 | `deleteHost(alias)` | `{ok}` | removes the block; confirm in QML first |
 | `saveRawBlock(alias, text)` | `{ok}` | block must start with `Host`/`Match` |
@@ -78,6 +83,20 @@ Every one of those is decorated with `@Slot`; removing a decorator makes the
 call throw "Property … is not a function" in QML rather than failing at
 import.
 
+## Forwarding calls
+
+| Call | Notes |
+| --- | --- |
+| `tunnelCommand(alias)` | the equivalent command line, shown in the panel |
+| `startTunnels(alias, persist)` | enable a host's rules; while a session is open it is that session that provides them |
+| `stopTunnels(alias)` | release the forwarding for a host |
+| `setTunnelPersist(alias, persist)` | the "keep running" opt-in; takes effect when the session ends |
+
+States in `tunnels`: `session` (an open tab provides the rules, no process of
+ours), `pending`/`starting`/`running` (our own `tssh -N`), `failed`, `stopped`.
+A non-persistent entry is removed when its last session closes; a persistent one
+moves to `pending` and spawns `tssh -N` once the port is free.
+
 ## Signals QML listens to
 
 | Signal | Used by |
@@ -85,6 +104,7 @@ import.
 | `hostsChanged` | sidebar rebuild, palette |
 | `settingsChanged` | theme re-application, all setting bindings |
 | `terminalColorsChanged` | forces `applyTheme()` in `Main.qml` |
+| `tunnelsChanged` | tunnel panel, `tunnelCount` badge |
 | `toast(message)` | Snackbar |
 | `tabsChanged` / `activeTabChanged` | tab strip, panes, composer |
 

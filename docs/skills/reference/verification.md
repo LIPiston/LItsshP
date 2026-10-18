@@ -45,6 +45,35 @@ byte-identical, the edited value present, the `#!!` extension written, and
 
 Expected output ends with `PASS config round-trip gate` and exit 0.
 
+## Gate 3b — forwarding rules round-trip and stay scoped
+
+```bash
+.venv/Scripts/python docs/skills/reference/forward_roundtrip_gate.py
+```
+
+Covers the accumulating directives (`LocalForward`/`RemoteForward`/
+`DynamicForward`): multiple lines read as a list, positional rewrite that keeps
+comments between them, removal that deletes only the directive line, an
+unrelated block staying byte-identical, BOM/CRLF preserved, `Host *` rules
+reported as inherited and never rewritten, `ClearAllForwardings` reported, and
+the spec parser's accept/reject cases.
+
+Expected output ends with `PASS forward round-trip gate` and exit 0.
+
+## Gate 3c — port-forward smoke (manual, local sshd)
+
+1. Add `LocalForward 18080 localhost:22` to a host whose `HostName` is
+   `127.0.0.1`, open that host, and confirm `127.0.0.1:18080` accepts a
+   connection while the tab is open.
+2. Close the tab and confirm the port is released — the session owned it.
+3. Reopen, tick **Keep running** in the forwarding panel, close the tab, and
+   confirm the port is *still* open (the app now owns it via `tssh -N`).
+4. Occupy the port before opening the panel to confirm the conflict is reported
+   instead of failing silently. tssh prints a bind warning and still exits 0, so
+   the warning line — not the exit code — is what the panel reacts to.
+5. Confirm `ssh -F ~/.ssh/config -G <alias>` shows the same `localforward`
+   lines the editor wrote.
+
 ## Gate 4 — manual session smoke
 
 Needs a reachable SSH host. On this machine `sshd` listens on `127.0.0.1:22`

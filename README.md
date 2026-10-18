@@ -54,6 +54,7 @@ Or directly:
 | Hidden hosts | `#!! HideHost yes` |
 | Password field | `#!! encPassword <hex>` plus `#!! encQuestionAnswer1`, byte-compatible with tssh |
 | Advanced tab | `ProxyJump`, `ProxyCommand`, `IdentityFile`, `IdentitiesOnly` |
+| Port forwarding | `LocalForward`, `RemoteForward`, `DynamicForward` in the host's block |
 | Raw block editor | the literal text of the block, written back verbatim |
 
 Passwords are encoded with tssh's own scheme — a fixed AES-256-GCM key whose
@@ -82,6 +83,7 @@ Python (`app/style.py`) so no C++ toolchain is needed.
 | `Ctrl+,` | settings |
 | `Ctrl+B` | toggle the sidebar |
 | `Ctrl+Shift+P` | command palette |
+| `Ctrl+Shift+T` | port forwarding panel |
 | `Ctrl+R` | reconnect the active session |
 | `Ctrl+Shift+R` | reload hosts from disk |
 | `Ctrl+Shift+C` / `Ctrl+Shift+V` | copy selection / paste |
@@ -111,6 +113,33 @@ Settings.
 Sent lines are typed to the shell exactly as if entered by hand, so line
 continuations and multi-line blocks behave normally instead of sitting in a
 paste buffer.
+
+### Port forwarding
+
+Rules are ordinary `LocalForward`, `RemoteForward` and `DynamicForward` lines in
+the host's block, edited in the host editor. They are visible to `ssh` and
+`tssh` on the command line, so a tunnel set up here keeps working outside the
+GUI.
+
+A forward is a property of a connection, not a background service. While a host
+has an open session, that session provides the rules — no second process is
+started, because it would race the session for the same local port. When the
+session ends, the forward ends with it.
+
+`Ctrl+Shift+T` (or the `swap_horiz` icon) opens the forwarding panel. Each host
+lists the rules it is currently providing, whether they came from the host's own
+block or from a `Host *` rule, and its state. **Keep running** is the opt-in to
+survive the session: once the tab closes, the app starts its own
+`tssh -N <alias>` and hands the ports over. Those processes are still stopped
+when the app exits, so nothing keeps listening behind a closed window.
+
+If you reopen a host whose forwards a kept-alive tunnel is already holding, the
+new session is started with `ClearAllForwardings=yes` so it does not fight for
+the same local ports.
+
+Rules inherited from a wildcard or `Include` block are shown read-only: deleting
+them from one host's editor would silently change every other host matching that
+block. Forwarding also stops if the host sets `ClearAllForwardings yes`.
 
 ### Transfer progress
 
@@ -161,6 +190,10 @@ destination really cannot be written, the download falls back to
 `%TEMP%\LItsshP` instead of failing, and permission problems are reported in
 the status line rather than leaving a blank pane.
 
+The footer also manages the remote folder: **New folder**, **Rename** and
+**Delete** run through the same batch `sftp` channel as the listings, so they
+need no extra connection. Delete always asks first.
+
 Transfers go through the OpenSSH `sftp` client, invoking the same
 `~/.ssh/config` entry the session uses, so ProxyJump, `IdentityFile` and agent
 settings all apply. This deliberately avoids trzsz, which would require `trz`
@@ -180,6 +213,7 @@ app/
   terminal_model.py  grid → QImage renderer, key/mouse input, selection
   terminal_theme.py  terminal palette derived from the Material scheme
   sftp_client.py     batch sftp for metadata, PTY-driven transfers with progress
+  tunnel.py          forwarding specs + supervised `tssh -N` processes
   style.py           Python port of the library's StyleManager / ColorHelper
   qml/               Main, HostSidebar, Workspace, TerminalPane, TransferWindow…
 third_party/md3/     vendored material-components-qml QML module

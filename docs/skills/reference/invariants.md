@@ -113,3 +113,24 @@ translated, in `_route()` in `controller.py` and `routeFor()` in
 - Enforced in: `_route`, `TransferWindow.routeFor`, `TransferIndicator`.
 - Checked by: starting both an upload and a download and reading the labels in
   the indicator, the popover and the window footer.
+
+## 10. Forwarding is a property of a connection
+
+A forwarding rule lives in the host's config block, so the session's own
+`tssh <alias>` already applies it. The app never spawns a second `tssh -N` while
+a session for that host is open — two processes would bind the same port.
+
+When the session ends, a non-persistent forward ends with it. Only a rule the
+user marked **keep running** is taken over by `tssh -N`, and even those stop
+when the app exits.
+
+- Enforced in: `TunnelManager.start`/`stop_session` and
+  `TunnelEntry.notify_port_free`, called from `AppController.openHost`,
+  `closeTab`, `_on_exit`, `_reconnect` and `shutdown`.
+- Practical rules: never pass `-L`/`-R`/`-D` to the tunnel process (the config
+  already declares them); never trust tssh's exit code to signal a forwarding
+  failure — it prints a warning and exits 0, so the output is what is checked;
+  when a persistent tunnel already owns the host's ports, the session is
+  spawned with `-o ClearAllForwardings=yes` so the two do not fight for them.
+- Checked by: `forward_roundtrip_gate.py` (rules and parser) and the manual
+  port-forward smoke in [Verification](verification.md).
