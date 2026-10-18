@@ -17,3 +17,6 @@ NUL
 .idea/
 Thumbs.db
 desktop.ini
+
+# Agent session state (plans, scratch)
+.zcode/
