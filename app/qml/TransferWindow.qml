@@ -24,6 +24,14 @@ Window {
     property bool busy: false
     property real progress: -1
 
+    // Inline prompt for the remote pane's file operations. A plain overlay
+    // rather than md3's Dialog: this is a separate Window, and the dialog's
+    // enter animation would gate the text field behind a render pass.
+    property string promptMode: ""      // mkdir | rename | delete
+    property string promptTitle: ""
+    property string promptValue: ""
+    property bool promptVisible: false
+
     width: 1080
     height: 660
     minimumWidth: 760
@@ -160,6 +168,85 @@ Window {
             statusText += " · " + message.split("\n")[0]
         refreshRemote()
         refreshLocal()
+    }
+
+    // ── Remote file operations ─────────────────────────────────────────
+    function selectedRemoteEntry() {
+        for (var i = 0; i < remoteSelection.length; i++) {
+            if (remoteSelection[i])
+                return remoteEntries[i]
+        }
+        return null
+    }
+
+    function selectedRemoteCount() {
+        var n = 0
+        for (var i = 0; i < remoteSelection.length; i++)
+            if (remoteSelection[i]) n++
+        return n
+    }
+
+    function promptNewFolder() {
+        promptMode = "mkdir"
+        promptTitle = "New folder in " + remotePath
+        promptValue = ""
+        promptVisible = true
+        Qt.callLater(function () { promptField.forceActiveFocus() })
+    }
+
+    function promptRename() {
+        var entry = selectedRemoteEntry()
+        if (!entry) {
+            statusText = "Select one item on the right to rename"
+            return
+        }
+        promptMode = "rename"
+        promptTitle = "Rename " + entry.name
+        promptValue = entry.name
+        promptVisible = true
+        Qt.callLater(function () { promptField.forceActiveFocus() })
+    }
+
+    function promptDelete() {
+        var count = selectedRemoteCount()
+        if (count === 0) {
+            statusText = "Select items on the right to delete"
+            return
+        }
+        promptMode = "delete"
+        promptTitle = "Delete " + count + (count === 1 ? " item?" : " items?")
+        promptValue = count === 1 ? selectedRemoteEntry().name : count + " items"
+        promptVisible = true
+    }
+
+    function confirmPrompt() {
+        if (!sftp) {
+            promptVisible = false
+            return
+        }
+        if (promptMode === "mkdir") {
+            var name = promptValue.trim()
+            if (!name) return
+            busy = true
+            statusText = "Creating " + name + "…"
+            sftp.mkdir(joinRemote(remotePath, name))
+        } else if (promptMode === "rename") {
+            var entry = selectedRemoteEntry()
+            var newName = promptValue.trim()
+            if (!entry || !newName || newName === entry.name) {
+                promptVisible = false
+                return
+            }
+            busy = true
+            statusText = "Renaming…"
+            sftp.rename(joinRemote(remotePath, entry.name),
+                        joinRemote(remotePath, newName))
+        } else if (promptMode === "delete") {
+            busy = true
+            statusText = "Deleting…"
+            sftp.remove(selectedRemotePaths())
+        }
+        promptVisible = false
     }
 
     function onFailure(message) {
@@ -419,6 +506,36 @@ Window {
                 enabled: !transferWindow.busy
                 onClicked: transferWindow.download()
             }
+
+            // Remote-side file management. These run through the same sftp
+            // batch channel as the listings, so they need no extra connection.
+            Rectangle {
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: 24
+                color: Theme.color.outlineVariant
+            }
+            Button {
+                text: "New folder"
+                icon: "create_new_folder"
+                type: "text"
+                enabled: !transferWindow.busy && transferWindow.remotePath !== ""
+                onClicked: transferWindow.promptNewFolder()
+            }
+            Button {
+                text: "Rename"
+                icon: "drive_file_rename_outline"
+                type: "text"
+                enabled: !transferWindow.busy && transferWindow.selectedRemoteCount() === 1
+                onClicked: transferWindow.promptRename()
+            }
+            Button {
+                text: "Delete"
+                icon: "delete"
+                type: "text"
+                enabled: !transferWindow.busy && transferWindow.selectedRemoteCount() > 0
+                onClicked: transferWindow.promptDelete()
+            }
+
             Button {
                 text: "Refresh"
                 icon: "refresh"
@@ -427,6 +544,91 @@ Window {
                 onClicked: {
                     transferWindow.refreshLocal()
                     transferWindow.refreshRemote()
+                }
+            }
+        }
+    }
+
+    // ── Prompt overlay ─────────────────────────────────────────────────
+    Rectangle {
+        id: promptOverlay
+        anchors.fill: parent
+        z: 500
+        visible: transferWindow.promptVisible
+        color: "#000000"
+        opacity: 0.35
+        MouseArea {
+            anchors.fill: parent
+            onClicked: transferWindow.promptVisible = false
+        }
+    }
+
+    Rectangle {
+        id: promptCard
+        z: 501
+        visible: transferWindow.promptVisible
+        anchors.centerIn: parent
+        width: Math.min(420, transferWindow.width - 80)
+        height: promptColumn.implicitHeight + 48
+        radius: 16
+        color: Theme.color.surfaceContainerHigh
+        border.width: 1
+        border.color: Theme.color.outlineVariant
+
+        ColumnLayout {
+            id: promptColumn
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.topMargin: 24
+            anchors.leftMargin: 24
+            anchors.rightMargin: 24
+            spacing: 14
+
+            Text {
+                Layout.fillWidth: true
+                text: transferWindow.promptTitle
+                wrapMode: Text.Wrap
+                elide: Text.ElideMiddle
+                font.family: Theme.typography.titleMedium.family
+                font.pixelSize: 15
+                color: Theme.color.onSurfaceColor
+            }
+
+            TextField {
+                id: promptField
+                Layout.fillWidth: true
+                visible: transferWindow.promptMode !== "delete"
+                text: transferWindow.promptValue
+                type: "outlined"
+                labelBackgroundColor: Theme.color.surfaceContainerHigh
+                onTextChanged: transferWindow.promptValue = text
+                onAccepted: transferWindow.confirmPrompt()
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: transferWindow.promptMode === "delete"
+                wrapMode: Text.Wrap
+                text: "This removes the selected items from the server and cannot be undone."
+                font.family: Theme.typography.bodySmall.family
+                font.pixelSize: 12
+                color: Theme.color.onSurfaceVariantColor
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 2
+                spacing: 8
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: "Cancel"
+                    type: "text"
+                    onClicked: transferWindow.promptVisible = false
+                }
+                Button {
+                    text: transferWindow.promptMode === "delete" ? "Delete" : "OK"
+                    onClicked: transferWindow.confirmPrompt()
                 }
             }
         }
