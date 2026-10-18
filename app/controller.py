@@ -307,7 +307,21 @@ class AppController(QObject):
 
     @Slot(result=str)
     def localHome(self) -> str:
-        return str(paths.home())
+        """Writable starting folder for the local pane.
+
+        Prefers the user profile; falls back to a temp folder when the profile
+        is not writable (managed machines, locked-down accounts), because a
+        pane that opens somewhere unwritable cannot receive a download.
+        """
+        candidate = paths.home()
+        if paths.is_writable(candidate):
+            return str(candidate)
+        fallback = paths.transfers_dir()
+        try:
+            fallback.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return str(candidate)
+        return str(fallback)
 
     @Slot("QVariantList", result="QVariantList")
     def localSizes(self, paths_in: list) -> list:
@@ -315,10 +329,46 @@ class AppController(QObject):
         from .sftp_client import local_size
         return [local_size(str(p)) for p in paths_in]
 
-    @Slot(str, result="QVariantList")
-    def listLocal(self, path: str) -> list:
-        """Directories/files for the local pane of the transfer window."""
+    @Slot(str, result="QVariantMap")
+    def listLocalResult(self, path: str) -> dict:
+        """Like listLocal, but reports *why* a folder is empty.
+
+        Returns ``{ok, path, entries, error, fallback}``. A folder that does
+        not exist yet but whose parent is writable counts as usable: the pane
+        may navigate into it, and a download creates it on demand. Only a
+        folder that is genuinely unreadable triggers ``fallback``.
+        """
         target = Path(os.path.expanduser(path)) if path else paths.home()
+        entries, error = self._read_dir(target)
+        if error is None:
+            return {"ok": True, "path": str(target), "entries": entries,
+                    "error": "", "fallback": ""}
+
+        if not target.exists() and self._parent_writable(target):
+            return {"ok": True, "path": str(target), "entries": [],
+                    "error": "", "fallback": ""}
+
+        fallback = self.localHome()
+        if str(target) != fallback:
+            fallback_entries, fallback_error = self._read_dir(Path(fallback))
+            if fallback_error is None:
+                return {"ok": True, "path": fallback, "entries": fallback_entries,
+                        "error": error, "fallback": fallback}
+        return {"ok": False, "path": str(target), "entries": [],
+                "error": error, "fallback": fallback}
+
+    @staticmethod
+    def _parent_writable(target: Path) -> bool:
+        """Whether ``target`` could be created, judged from its nearest ancestor."""
+        parent = target.parent
+        while str(parent) != str(parent.parent):
+            if parent.exists():
+                return paths.is_writable(parent)
+            parent = parent.parent
+        return False
+
+    @staticmethod
+    def _read_dir(target: Path) -> tuple[list, str | None]:
         entries = []
         try:
             for item in target.iterdir():
@@ -333,15 +383,19 @@ class AppController(QObject):
                     "path": str(item),
                     "size": size,
                 })
-        except OSError:
-            return []
+        except PermissionError:
+            return [], f"Cannot open {target} — permission denied."
+        except FileNotFoundError:
+            return [], f"{target} does not exist."
+        except OSError as exc:
+            return [], f"Cannot open {target} — {exc.strerror or exc}."
         entries.sort(key=lambda e: (not e["isDir"], e["name"].lower()))
-        return entries
+        return entries, None
 
     @Slot(str, result=str)
     def parentPath(self, path: str) -> str:
         if not path:
-            return str(paths.home())
+            return self.localHome()
         parent = Path(path).parent
         return str(parent) if str(parent) != path else path
 

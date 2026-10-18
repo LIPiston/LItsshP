@@ -84,7 +84,19 @@ Window {
     }
 
     function refreshLocal() {
-        localEntries = App.listLocal(localPath)
+        var res = App.listLocalResult(localPath)
+        if (res.ok) {
+            localPath = res.path
+            localEntries = res.entries
+            if (res.error) {
+                // Opened somewhere else because the old folder was not
+                // readable; say so rather than silently moving the pane.
+                statusText = res.error + " Showing " + res.path + "."
+            }
+        } else {
+            localEntries = []
+            statusText = res.error + (res.fallback ? " Try " + res.fallback + "." : "")
+        }
         localSelection = []
     }
 
@@ -98,10 +110,11 @@ Window {
         alias = host
         localPath = App.localHome()
         remotePath = ""
-        localEntries = App.listLocal(localPath)
         remoteEntries = []
         localSelection = []
         remoteSelection = []
+        localEntries = []
+        refreshLocal()
         statusText = "Connecting…"
         busy = true
         if (sftp) {

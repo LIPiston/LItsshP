@@ -9,11 +9,48 @@ from __future__ import annotations
 
 import os
 import shutil
+import tempfile
 from pathlib import Path
 
 
 def home() -> Path:
-    return Path(os.path.expanduser("~"))
+    """The user's home directory, independent of the launching shell.
+
+    ``os.path.expanduser`` prefers ``HOME``, which is wrong when the app is
+    started from a POSIX-style shell (Git Bash sets ``HOME=/c/Users/...``).
+    On Windows the profile directory is the authoritative answer, so use it
+    and fall back to ``expanduser`` elsewhere.
+    """
+    if os.name == "nt":
+        profile = os.environ.get("USERPROFILE")
+        if profile:
+            path = Path(profile)
+            if path.is_dir():
+                return path
+    expanded = Path(os.path.expanduser("~"))
+    return expanded if expanded.is_dir() else Path.home()
+
+
+def transfers_dir() -> Path:
+    """A guaranteed-writable folder for files the transfer window touches.
+
+    Used when the home directory or a chosen destination is not writable, so
+    a permissions problem degrades to a working folder instead of an empty
+    pane or a failed transfer.
+    """
+    return Path(tempfile.gettempdir()) / "LItsshP"
+
+
+def is_writable(path: Path) -> bool:
+    """Whether ``path`` exists and can be created into / written to."""
+    try:
+        probe = path / ".litsshp-write-test"
+        with open(probe, "wb"):
+            pass
+        probe.unlink()
+        return True
+    except OSError:
+        return False
 
 
 def ssh_dir() -> Path:

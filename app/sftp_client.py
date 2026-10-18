@@ -212,26 +212,61 @@ class SftpClient(QObject):
         threading.Thread(target=self._initial, daemon=True).start()
 
     def _initial(self) -> None:
+        """Open the remote pane at ``~``, falling back when it is unusable.
+
+        ``pwd`` is the authoritative answer for "~", but a locked-down account
+        can have a home it may not list. Rather than showing an empty pane,
+        try the usual candidates and open the first one that actually reads.
+        """
         code, out = self._run(["pwd"])
         home = ""
         for line in out.splitlines():
             if "Remote working directory:" in line:
                 home = line.split("Remote working directory:", 1)[1].strip()
         if not home:
-            home = "/"
+            home = "~"
+
+        tried = []
+        for candidate in (home, "~", "/", "/tmp"):
+            if candidate in tried:
+                continue
+            tried.append(candidate)
+            entries = self._try_list(candidate)
+            if entries is not None:
+                self.home = candidate
+                self.listingReady.emit(candidate, entries)
+                if candidate != home:
+                    self.failed.emit(
+                        f"Could not open {home}; showing {candidate} instead.")
+                return
+
         self.home = home
-        self._list(home, initial=True)
+        self.failed.emit(
+            f"Could not list the remote home directory ({home}). "
+            "The account may lack permission to read it.")
 
     @Slot(str)
     def listDir(self, path: str) -> None:
         threading.Thread(target=self._list, args=(path, False), daemon=True).start()
 
-    def _list(self, path: str, initial: bool) -> None:
+    def _try_list(self, path: str) -> list[dict] | None:
+        """Parsed entries for ``path``, or None when sftp refused to list it."""
         code, out = self._run(["ls -la " + _quote_remote(path)])
-        if code != 0 and not initial:
-            self.failed.emit(out.strip() or "Could not list the directory.")
-            return
-        self.listingReady.emit(path, self._parse_ls(out))
+        lowered = out.lower()
+        if code != 0 or any(hint in lowered for hint in _FAILURE_HINTS):
+            return None
+        return self._parse_ls(out)
+
+    def _list(self, path: str, initial: bool) -> None:
+        entries = self._try_list(path)
+        if entries is None:
+            if initial:
+                entries = []
+            else:
+                self.failed.emit(
+                    f"Cannot open {path} — permission denied or not a directory.")
+                return
+        self.listingReady.emit(path, entries)
 
     @Slot(list, str, "QVariantList")
     def upload(self, local_paths: list, remote_dir: str, sizes: list) -> None:
@@ -254,13 +289,32 @@ class SftpClient(QObject):
 
     def _download(self, remote_paths: list[str], local_dir: str, sizes: list) -> None:
         # `get ... <dir>` writes into <dir> and refuses to create it, so make
-        # sure the destination exists before handing the batch to sftp.
+        # sure the destination exists before handing the batch to sftp. If it
+        # cannot be created or written to (permissions, read-only share), fall
+        # back to the app's temp folder rather than failing the transfer.
+        destination = Path(local_dir)
         try:
-            Path(local_dir).mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            self.operationDone.emit("Download", False, str(exc))
-            return
-        lines = ["get -R " + _quote_remote(p) + " " + _quote_local(local_dir)
+            destination.mkdir(parents=True, exist_ok=True)
+            writable = paths.is_writable(destination)
+        except OSError:
+            writable = False
+        if not writable:
+            fallback = paths.transfers_dir()
+            try:
+                fallback.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                self.operationDone.emit("Download", False,
+                                        f"{local_dir} is not writable: {exc}")
+                return
+            if not paths.is_writable(fallback):
+                self.operationDone.emit(
+                    "Download", False,
+                    f"{local_dir} is not writable and no fallback folder "
+                    "could be created.")
+                return
+            destination = fallback
+
+        lines = ["get -R " + _quote_remote(p) + " " + _quote_local(str(destination))
                  for p in remote_paths]
         self._transfer("Download", lines, _total(sizes))
 
