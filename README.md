@@ -202,3 +202,23 @@ Environment overrides, useful for testing against a scratch config:
 - `LITSSHP_TSSH` — path to the tssh executable
 - `LITSSHP_SFTP` — path to the `sftp` executable used by the transfer window
 - `LITSSHP_STATE` — path to the UI state file
+
+## Documentation
+
+[`docs/`](docs/README.md) holds the material for working on the code rather
+than with it:
+
+- [`docs/skills/`](docs/skills/index.md) — playbooks for setup, defect
+  diagnosis, the terminal renderer, transfers and the config writer;
+- [`docs/skills/reference/`](docs/skills/reference/index.md) — architecture,
+  the invariants every change must preserve, the verification gates and the
+  full QML-facing API.
+
+Two of those gates are runnable as they stand and cover the most common
+breakages:
+
+```bash
+.venv/Scripts/python docs/skills/reference/qml_load_gate.py
+.venv/Scripts/python docs/skills/reference/config_roundtrip_gate.py
+```
+
