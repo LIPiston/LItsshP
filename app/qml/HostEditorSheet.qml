@@ -45,6 +45,9 @@ Item {
             fieldPassword.text = ""
             passwordHint = ""
             rawArea.text = ""
+            ownForwards = []
+            inheritedForwards = []
+            forwardsDisabled = false
             return
         }
         var h = App.host(originalAlias)
@@ -59,9 +62,57 @@ Item {
         fieldPassword.text = App.hostPassword(originalAlias)
         passwordHint = h.hasPassword ? "Password stored (tssh encPassword)" : ""
         rawArea.text = App.hostRawBlock(originalAlias)
+
+        var forwards = App.hostForwards(originalAlias)
+        ownForwards = (forwards.own || []).map(function (r) {
+            return { kind: r.kind, spec: r.spec }
+        })
+        inheritedForwards = forwards.inherited || []
+        forwardsDisabled = forwards.disabled === true
     }
 
     property string passwordHint: ""
+
+    // Forwarding rules, split by where they came from: `own` is what this
+    // form writes back, `inherited` is shown read-only because it belongs to
+    // a Host * or Include block shared with other hosts.
+    property var ownForwards: []
+    property var inheritedForwards: []
+    property bool forwardsDisabled: false
+
+    function addForward() {
+        var list = ownForwards.slice()
+        list.push({ kind: "L", spec: "" })
+        ownForwards = list
+    }
+
+    function removeForward(index) {
+        var list = ownForwards.slice()
+        list.splice(index, 1)
+        ownForwards = list
+    }
+
+    function setForwardKind(index, kind) {
+        var list = ownForwards.slice()
+        list[index] = { kind: kind, spec: list[index].spec }
+        ownForwards = list
+    }
+
+    // Mutated in place on purpose: reassigning the array would rebuild the
+    // Repeater and yank the caret out of the field being typed into. `submit`
+    // reads the array, so the in-place edit is what gets saved.
+    function setForwardSpec(index, spec) {
+        if (index < 0 || index >= ownForwards.length)
+            return
+        ownForwards[index].spec = spec
+    }
+
+    function forwardHint(kind, spec) {
+        if (!String(spec || "").trim())
+            return ""
+        var parsed = App.forwardPreview(kind, spec)
+        return parsed.valid ? parsed.label : parsed.error
+    }
 
     // ── Scrim ──────────────────────────────────────────────────────────
     Rectangle {
@@ -329,6 +380,183 @@ Item {
                             }
                         }
 
+                        // Port forwarding
+                        Text {
+                            Layout.topMargin: 6
+                            text: "Port forwarding"
+                            font.family: Theme.typography.labelLarge.family
+                            font.pixelSize: 12
+                            color: Theme.color.onSurfaceVariantColor
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            visible: root.ownForwards.length === 0
+                            wrapMode: Text.Wrap
+                            text: "No rules of this host's own. Forwarding is only active while a session is open."
+                            font.family: Theme.typography.bodySmall.family
+                            font.pixelSize: 11
+                            color: Theme.color.onSurfaceVariantColor
+                            opacity: 0.8
+                        }
+
+                        Repeater {
+                            model: root.ownForwards
+
+                            delegate: ColumnLayout {
+                                id: forwardRow
+
+                                required property var modelData
+                                required property int index
+
+                                // Local copy so typing does not depend on the
+                                // model object being re-bound per keystroke.
+                                property string specText: modelData.spec
+
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    ComboBox {
+                                        Layout.preferredWidth: 104
+                                        model: ["Local", "Remote", "Dynamic"]
+                                        currentIndex: forwardRow.modelData.kind === "R" ? 1
+                                                      : (forwardRow.modelData.kind === "D" ? 2 : 0)
+                                        type: "outlined"
+                                        onActivated: (i) => {
+                                            root.setForwardKind(forwardRow.index,
+                                                i === 1 ? "R" : (i === 2 ? "D" : "L"))
+                                        }
+                                    }
+
+                                    TextField {
+                                        Layout.fillWidth: true
+                                        Layout.minimumWidth: 0
+                                        text: forwardRow.specText
+                                        type: "outlined"
+                                        labelBackgroundColor: Theme.color.surfaceContainerLow
+                                        placeholderText: forwardRow.modelData.kind === "D"
+                                                         ? "1080" : "8080:localhost:80"
+                                        onTextChanged: {
+                                            forwardRow.specText = text
+                                            root.setForwardSpec(forwardRow.index, text)
+                                        }
+                                    }
+
+                                    Item {
+                                        Layout.preferredWidth: 28
+                                        Layout.preferredHeight: 28
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: 6
+                                            color: removeHover.containsMouse
+                                                   ? Qt.rgba(Theme.color.error.r,
+                                                             Theme.color.error.g,
+                                                             Theme.color.error.b, 0.12)
+                                                   : "transparent"
+                                        }
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "close"
+                                            font.family: Theme.iconFont.name
+                                            font.pixelSize: 15
+                                            color: Theme.color.error
+                                        }
+                                        MouseArea {
+                                            id: removeHover
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.removeForward(forwardRow.index)
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    Layout.leftMargin: 112
+                                    Layout.fillWidth: true
+                                    visible: forwardRow.specText !== ""
+                                    wrapMode: Text.Wrap
+                                    text: root.forwardHint(forwardRow.modelData.kind,
+                                                           forwardRow.specText)
+                                    font.family: Theme.typography.labelSmall.family
+                                    font.pixelSize: 10
+                                    color: App.forwardPreview(forwardRow.modelData.kind,
+                                                              forwardRow.specText).valid
+                                           ? Theme.color.onSurfaceVariantColor
+                                           : Theme.color.error
+                                }
+                            }
+                        }
+
+                        Button {
+                            Layout.alignment: Qt.AlignLeft
+                            text: "Add rule"
+                            icon: "add"
+                            type: "text"
+                            onClicked: root.addForward()
+                        }
+
+                        // Inherited rules: visible, not editable from here.
+                        Repeater {
+                            model: root.inheritedForwards
+
+                            delegate: RowLayout {
+                                required property var modelData
+
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                Text {
+                                    text: modelData.kind === "R" ? "Remote"
+                                          : (modelData.kind === "D" ? "Dynamic" : "Local")
+                                    Layout.preferredWidth: 104
+                                    font.family: Theme.typography.labelSmall.family
+                                    font.pixelSize: 10
+                                    color: Theme.color.onSurfaceVariantColor
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: modelData.spec
+                                    elide: Text.ElideMiddle
+                                    font.family: Theme.typography.bodySmall.family
+                                    font.pixelSize: 11
+                                    color: Theme.color.onSurfaceVariantColor
+                                }
+                                Text {
+                                    text: modelData.source || ""
+                                    font.family: Theme.typography.labelSmall.family
+                                    font.pixelSize: 9
+                                    color: Theme.color.onSurfaceVariantColor
+                                    opacity: 0.7
+                                }
+                            }
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            visible: root.forwardsDisabled
+                            wrapMode: Text.Wrap
+                            text: "ClearAllForwardings is set for this host, so none of these rules is applied."
+                            font.family: Theme.typography.labelSmall.family
+                            font.pixelSize: 10
+                            color: Theme.color.tertiary
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            visible: root.originalAlias !== "" && root.ownForwards.length > 0
+                            wrapMode: Text.WrapAnywhere
+                            text: App.tunnelCommand(root.originalAlias)
+                            font.family: Theme.typography.labelSmall.family
+                            font.pixelSize: 9
+                            color: Theme.color.onSurfaceVariantColor
+                            opacity: 0.6
+                        }
+
                         Button {
                             Layout.alignment: Qt.AlignLeft
                             Layout.topMargin: 4
@@ -582,7 +810,10 @@ Item {
             "identityFile": fieldIdentity.text.trim(),
             "groups": fieldGroups.text.trim(),
             "proxyJump": fieldJump.text.trim(),
-            "proxyCommand": fieldCommand.text.trim()
+            "proxyCommand": fieldCommand.text.trim(),
+            "forwards": root.ownForwards.filter(function (r) {
+                return String(r.spec || "").trim() !== ""
+            })
         }
         if (root.isNew || fieldPassword.text !== App.hostPassword(root.originalAlias)) {
             fields.password = fieldPassword.text

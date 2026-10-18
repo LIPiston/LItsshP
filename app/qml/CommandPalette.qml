@@ -16,6 +16,7 @@ Item {
     readonly property var actions: [
         { kind: "action", id: "new-host", title: "New host", icon: "add" },
         { kind: "action", id: "settings", title: "Open settings", icon: "settings" },
+        { kind: "action", id: "tunnels", title: "Port forwarding", icon: "swap_horiz" },
         { kind: "action", id: "toggle-sidebar", title: "Toggle sidebar", icon: "left_panel_close" },
         { kind: "action", id: "refresh", title: "Reload ~/.ssh/config", icon: "refresh" }
     ]

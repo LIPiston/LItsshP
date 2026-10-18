@@ -71,6 +71,7 @@ Window {
     function openSettings() { settingsSheet.open() }
     function focusSearch() { sidebar.focusSearch() }
     function openTransfer(alias) { transferWindow.open(alias) }
+    function openTunnels() { tunnelSheet.open() }
 
     // Frameless window: the brand block in the sidebar header doubles as the
     // drag handle, so the title area has to forward press/drag to the window.
@@ -187,6 +188,12 @@ Window {
         onConfigPathRequested: App.revealConfig()
     }
 
+    TunnelSheet {
+        id: tunnelSheet
+        anchors.fill: parent
+        window: appWindow
+    }
+
     CommandPalette {
         id: commandPalette
         anchors.fill: parent
@@ -195,6 +202,7 @@ Window {
         onActionChosen: (action) => {
             if (action === "new-host") appWindow.openHostEditor("")
             else if (action === "settings") appWindow.openSettings()
+            else if (action === "tunnels") appWindow.openTunnels()
             else if (action === "toggle-sidebar") App.setSetting("sidebarVisible", !(App.settings.sidebarVisible !== false))
             else if (action === "refresh") App.refreshHosts()
         }
@@ -220,6 +228,7 @@ Window {
     }
     Shortcut { sequences: ["Ctrl+,"]; onActivated: appWindow.openSettings() }
     Shortcut { sequences: ["Ctrl+Shift+P"]; onActivated: appWindow.openPalette() }
+    Shortcut { sequences: ["Ctrl+Shift+T"]; onActivated: appWindow.openTunnels() }
     Shortcut {
         sequences: ["Ctrl+B"]
         onActivated: App.setSetting("sidebarVisible", !(App.settings.sidebarVisible !== false))

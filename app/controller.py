@@ -14,6 +14,7 @@ from .config import ConfigStore, all_groups
 from .pty_session import PtySession
 from .sftp_client import SftpClient
 from .terminal_model import TerminalImageProvider, TerminalModel
+from .tunnel import TunnelManager, format_forward_label, tunnel_argv
 
 DEFAULT_SETTINGS = {
     "fontFamily": "Cascadia Mono",
@@ -58,6 +59,7 @@ class AppController(QObject):
     terminalColorsChanged = Signal()
     transferProgressChanged = Signal()
     transferHistoryChanged = Signal()
+    tunnelsChanged = Signal()
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -71,6 +73,8 @@ class AppController(QObject):
         self._transfers: dict[object, dict] = {}
         self._transfer_log: list[dict] = []
         self._transfer_seq = 0
+        self._tunnels = TunnelManager(self)
+        self._tunnels.changed.connect(self.tunnelsChanged)
         self._load_state()
         self._refresh_hosts()
 
@@ -199,6 +203,12 @@ class AppController(QObject):
         password = fields.get("password", None)
         if password is not None:
             clean["password"] = str(password)
+        if "forwards" in fields:
+            clean["forwards"] = [
+                {"kind": str(r.get("kind", "")), "spec": str(r.get("spec", ""))}
+                for r in (fields.get("forwards") or [])
+                if isinstance(r, dict)
+            ]
 
         try:
             if original:
@@ -222,6 +232,80 @@ class AppController(QObject):
             return {"ok": False, "error": str(exc)}
         self._refresh_hosts()
         return {"ok": True}
+
+    @Slot(str, result="QVariantMap")
+    def hostForwards(self, alias: str) -> dict:
+        """The host's own forwarding rules plus the ones it inherits."""
+        return self._store.forward_rules(alias)
+
+    @Slot(str, str, result="QVariantMap")
+    def forwardPreview(self, kind: str, spec: str) -> dict:
+        """Parse a spec for the editor's inline validation."""
+        from .tunnel import parse_forward_spec
+        parsed = parse_forward_spec(kind, spec)
+        parsed["label"] = format_forward_label(kind, spec)
+        return parsed
+
+    @Slot(str, result=str)
+    def tunnelCommand(self, alias: str) -> str:
+        """The equivalent command line, shown so the rule is not GUI-only."""
+        return " ".join(tunnel_argv(alias))
+
+    def _get_tunnels(self) -> list:
+        return self._tunnels.tunnels
+
+    tunnels = Property("QVariantList", _get_tunnels, notify=tunnelsChanged)
+
+    def _get_tunnel_count(self) -> int:
+        return self._tunnels.count
+
+    tunnelCount = Property(int, _get_tunnel_count, notify=tunnelsChanged)
+
+    def _get_tunnel_active(self) -> bool:
+        return bool(self._tunnels.active_keys())
+
+    tunnelActive = Property(bool, _get_tunnel_active, notify=tunnelsChanged)
+
+    def _host_rules(self, alias: str) -> list[dict]:
+        """Every rule that applies to a host, inherited ones included."""
+        data = self._store.forward_rules(alias)
+        if data.get("disabled"):
+            return []
+        return data.get("own", []) + data.get("inherited", [])
+
+    @Slot(str, bool, result="QVariantMap")
+    def startTunnels(self, alias: str, persist: bool = False) -> dict:
+        """Enable forwarding for a host.
+
+        While the host has an open session, that session already applies the
+        rules from the config; ``tssh -N`` is only spawned once it closes, and
+        only if ``persist`` was asked for. Without persistence the forward is
+        simply part of the connection.
+        """
+        rules = self._host_rules(alias)
+        if not rules:
+            message = f"{alias} has no forwarding rules"
+            self.toast.emit(message)
+            return {"ok": False, "error": message}
+        result = self._tunnels.start(alias, rules, persist=persist,
+                                     session_id=self._session_id(alias))
+        if not result.get("ok"):
+            self.toast.emit(result.get("error") or "Could not start the tunnel")
+        return result
+
+    @Slot(str)
+    def stopTunnels(self, alias: str) -> None:
+        self._tunnels.stop(alias)
+
+    @Slot(str, bool)
+    def setTunnelPersist(self, alias: str, persist: bool) -> None:
+        self._tunnels.set_persist(alias, persist)
+
+    def _session_id(self, alias: str) -> int:
+        for tab in self._tabs:
+            if tab.host == alias:
+                return tab.id
+        return 0
 
     # --------------------------------------------------------------- transfer
 
@@ -518,8 +602,21 @@ class AppController(QObject):
         self._settings["lastSession"] = alias
         self._save_state()
 
+        self._register_forwards(tab)
         QTimer.singleShot(0, lambda t=tab: self._start(t))
         return index
+
+    def _register_forwards(self, tab: Session) -> None:
+        """Note that this session provides its host's forwarding rules.
+
+        The session's own tssh already applies them, so no ``-N`` process is
+        spawned. Registering the pairing is what lets the tunnel panel offer
+        "keep running" and what ``stop_session`` releases later.
+        """
+        rules = self._host_rules(tab.host)
+        if rules:
+            self._tunnels.start(tab.host, rules, persist=False,
+                                session_id=tab.id)
 
     @Slot(int, result="QVariant")
     def terminalModel(self, index: int) -> object:
@@ -553,6 +650,12 @@ class AppController(QObject):
         # would be unknown to the process we spawn.
         if os.environ.get("LITSSHP_CONFIG"):
             argv += ["-F", str(paths.ssh_config())]
+        # If a persistent tunnel of ours already holds this host's ports, the
+        # session must not try to bind them as well. tssh applies the config's
+        # forwarding directives unless told to clear them, and a second bind
+        # only produces a warning while the process keeps running.
+        if self._tunnels.owns_process(tab.host):
+            argv += ["-o", "ClearAllForwardings=yes"]
         argv.append(tab.host)
         if not tab.pty.start(argv, cols=cols, rows=rows):
             tab.state = "failed"
@@ -589,6 +692,9 @@ class AppController(QObject):
         tab.pty.stop()
         tab.pty.deleteLater()
         tab.model.deleteLater()
+        # Forwarding belongs to the connection: release what this session was
+        # providing, keeping only rules the user marked persistent.
+        self._tunnels.stop_session(tab.id)
         if self._active >= len(self._tabs):
             self._active = len(self._tabs) - 1
         if self._active < 0 and self._tabs:
@@ -615,6 +721,9 @@ class AppController(QObject):
         tab.pty.exited.connect(lambda status, t=tab: self._on_exit(t, status))
         tab.model.attachPty(tab.pty)
         self.tabsChanged.emit()
+        # A reconnect is a new connection: the forwards come back with it,
+        # unless the user kept them alive independently in the meantime.
+        self._register_forwards(tab)
         self._start(tab)
 
     @Slot(int)
@@ -657,10 +766,16 @@ class AppController(QObject):
         tab.state = "closed"
         tab.exit_status = status
         self.tabsChanged.emit()
+        # The process is gone, so the ports it held are free: a persistent
+        # rule is taken over here, a normal one ends with the connection.
+        self._tunnels.stop_session(tab.id)
 
     def _on_failure(self, tab: Session, message: str) -> None:
         tab.state = "failed"
         self.tabsChanged.emit()
+        # `_register_forwards` ran before the spawn was attempted; with no
+        # process there is nothing providing the rules, so release them.
+        self._tunnels.stop_session(tab.id)
         self.toast.emit(message)
 
     # ------------------------------------------------------------------ misc
@@ -671,6 +786,9 @@ class AppController(QObject):
             tab.model.detachPty()
             tab.pty.stop()
         self._tabs.clear()
+        # Persistent tunnels are a session-lifetime promise, not a daemon:
+        # nothing should keep listening after the window closes.
+        self._tunnels.stop_all()
         self._save_state()
 
 

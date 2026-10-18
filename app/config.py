@@ -78,6 +78,17 @@ class Block:
             return opt.value
         return None
 
+    def values(self, key: str) -> list[str]:
+        """Every value for a directive that may appear more than once.
+
+        ``LocalForward``/``RemoteForward``/``DynamicForward`` accumulate rather
+        than override, so the first-value-wins rule of :meth:`get` does not
+        describe them.
+        """
+        low = key.lower()
+        return [opt.value for opt in self.options()
+                if opt.keyword.lower() == low and not opt.extended]
+
     def has_keyword(self, key: str) -> bool:
         low = key.lower()
         return any(opt.keyword.lower() == low for opt in self.options())
@@ -250,6 +261,54 @@ class ConfigFile:
         self.lines.insert(insert_at, line)
         self._adjust_starts(insert_at - 1, 1)
 
+    def set_options(self, block: Block, key: str, values: list[str]) -> None:
+        """Replace every occurrence of an accumulating directive in ``block``.
+
+        Used for ``LocalForward``/``RemoteForward``/``DynamicForward``, which
+        OpenSSH appends rather than overrides. Existing directive lines are
+        rewritten in place (keeping their indentation), surplus ones are
+        removed, and anything between them — comments, blank lines — stays
+        where it is. New lines are appended after the last existing directive,
+        or at the end of the block when it has none.
+        """
+        low = key.lower()
+        matches: list[int] = []
+        for offset, raw in enumerate(block.lines):
+            if offset == 0:
+                continue
+            m = _LINE_RE.match(raw.rstrip("\r\n"))
+            if m and m.group(3).lower() == low and not m.group(2):
+                matches.append(offset)
+
+        if not matches:
+            for value in values:
+                self.set_option(block, key, value)
+            return
+
+        old_len = len(block.lines)
+        new_lines = list(block.lines)
+        rewritten: list[int] = []
+        # Walk backwards so earlier offsets stay valid as surplus lines go.
+        for position, offset in enumerate(matches):
+            if position < len(values):
+                m = _LINE_RE.match(new_lines[offset].rstrip("\r\n"))
+                indent = m.group(1) if m else "    "
+                new_lines[offset] = f"{indent}{key} {values[position]}{self.newline}"
+                rewritten.append(offset)
+            else:
+                del new_lines[offset]
+
+        extra = values[len(matches):]
+        if extra:
+            insert_at = (rewritten[-1] + 1) if rewritten else len(new_lines)
+            for position, value in enumerate(extra):
+                new_lines.insert(insert_at + position,
+                                 f"    {key} {value}{self.newline}")
+
+        block.lines = new_lines
+        self.lines[block.start:block.start + old_len] = new_lines
+        self._adjust_starts(block.start, len(new_lines) - old_len)
+
     def rename_alias(self, block: Block, old: str, new: str) -> None:
         if old == new or not block.lines:
             return
@@ -283,6 +342,13 @@ def _expand_includes(base: Path, pattern: str) -> list[Path]:
     if not matches and Path(expanded).exists():
         matches = [expanded]
     return [Path(p) for p in matches if Path(p).is_file()]
+
+
+def _block_label(block: Block) -> str:
+    """Short description of where a rule came from, for the read-only list."""
+    if block.kind == "global":
+        return "top-level options"
+    return " ".join(block.lines[0].split())
 
 
 def _matches(pattern: str, alias: str) -> bool:
@@ -419,6 +485,53 @@ class ConfigStore:
     def password(self, alias: str) -> str | None:
         return self._stored_password(alias)
 
+    # ------------------------------------------------------------- forwarding
+
+    # Forwarding directives accumulate across every block that applies to a
+    # host, so they cannot go through _first_value. The mapping to CLI flags
+    # is what tssh -N is invoked with.
+    FORWARD_KEYS = (("LocalForward", "L"), ("RemoteForward", "R"),
+                    ("DynamicForward", "D"))
+
+    def forward_rules(self, alias: str) -> dict:
+        """Forwarding rules that apply to ``alias``.
+
+        ``own`` holds the rules written in the host's own block and is what the
+        editor may rewrite. ``inherited`` holds rules that reach the host from
+        a wildcard, ``Match`` or ``Include`` block: they are shown read-only,
+        because deleting them would silently change every other host matching
+        the same block.
+        """
+        own: list[dict] = []
+        inherited: list[dict] = []
+        own_block: Block | None = None
+        for cfg, block, name in self._concrete_hosts():
+            if name == alias:
+                own_block = block
+                break
+
+        for cfg in self.files:
+            for block in cfg.blocks:
+                if block.kind == "match":
+                    continue
+                if block.kind == "host" and not _block_matches(block, alias):
+                    continue
+                is_own = block is own_block
+                for key, kind in self.FORWARD_KEYS:
+                    for value in block.values(key):
+                        rule = {"kind": kind, "spec": value}
+                        if is_own:
+                            own.append(rule)
+                        else:
+                            inherited.append({**rule, "source": _block_label(block)})
+
+        return {"own": own, "inherited": inherited,
+                "disabled": self._forwarding_disabled(alias)}
+
+    def _forwarding_disabled(self, alias: str) -> bool:
+        value = self._first_value(alias, "ClearAllForwardings")
+        return value.strip().lower() in ("yes", "true", "1", "on")
+
     # ---------------------------------------------------------------- writing
 
     def _target(self, alias: str) -> tuple[ConfigFile, Block] | None:
@@ -490,9 +603,24 @@ class ConfigStore:
             cfg.set_option(block, "encQuestionAnswer1", None, extended=True)
             cfg.set_option(block, "Password", None, extended=True)
 
+        if "forwards" in fields:
+            self._write_forwards(cfg, block, fields["forwards"])
+
         cfg.save()
         self.reload()
         return new_alias
+
+    def _write_forwards(self, cfg: ConfigFile, block: Block,
+                        rules: list) -> None:
+        """Persist the host's own forwarding rules, leaving inherited ones alone."""
+        grouped: dict[str, list[str]] = {kind: [] for _, kind in self.FORWARD_KEYS}
+        for rule in rules or []:
+            kind = str(rule.get("kind", "")).upper()
+            spec = str(rule.get("spec", "")).strip()
+            if kind in grouped and spec:
+                grouped[kind].append(spec)
+        for key, kind in self.FORWARD_KEYS:
+            cfg.set_options(block, key, grouped[kind])
 
     def delete_host(self, alias: str) -> None:
         target = self._target(alias)
@@ -572,6 +700,12 @@ class ConfigStore:
         groups = _normalise_groups(fields.get("group_labels", ""))
         if groups:
             options.append((f"{EXT_PREFIX} GroupLabels", groups))
+        for rule in fields.get("forwards") or []:
+            kind = str(rule.get("kind", "")).upper()
+            spec = str(rule.get("spec", "")).strip()
+            key = dict((k, key) for key, k in self.FORWARD_KEYS).get(kind)
+            if key and spec:
+                options.append((key, spec))
         password = fields.get("password") or ""
         if password:
             encoded = secret.encode_secret(password)

@@ -266,6 +266,59 @@ Item {
                 Layout.preferredHeight: implicitHeight
                 onClicked: transferPopover.toggle()
             }
+            // Port forwarding. Counts active forwards; the panel explains
+            // whether each is provided by a session or by its own process.
+            Item {
+                id: tunnelButton
+                Layout.preferredWidth: 30
+                Layout.preferredHeight: 30
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 6
+                    color: tunnelMouse.containsMouse ? root.hoverColor : "transparent"
+                }
+                Text {
+                    anchors.centerIn: parent
+                    text: "swap_horiz"
+                    font.family: Theme.iconFont.name
+                    font.pixelSize: 17
+                    color: App.tunnelActive ? Theme.color.primary
+                                            : Theme.color.onSurfaceVariantColor
+                }
+                Rectangle {
+                    visible: App.tunnelCount > 0
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.rightMargin: 3
+                    anchors.topMargin: 2
+                    width: Math.max(13, tunnelBadge.implicitWidth + 6)
+                    height: 13
+                    radius: 7
+                    color: Theme.color.primary
+                    Text {
+                        id: tunnelBadge
+                        anchors.centerIn: parent
+                        text: App.tunnelCount
+                        font.family: Theme.typography.labelSmall.family
+                        font.pixelSize: 8
+                        font.weight: Font.DemiBold
+                        color: Theme.color.onPrimaryColor
+                    }
+                }
+                MouseArea {
+                    id: tunnelMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.window.openTunnels()
+                }
+                ToolTip {
+                    visible: tunnelMouse.containsMouse
+                    text: "Port forwarding (Ctrl+Shift+T)"
+                    timeout: 8000
+                }
+            }
             HeaderIconButton {
                 icon: App.settings.composerVisible !== false ? "keyboard_hide" : "keyboard"
                 tooltip: (App.settings.composerVisible !== false ? "Hide" : "Show") + " command composer"
