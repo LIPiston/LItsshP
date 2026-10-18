@@ -582,7 +582,12 @@ class TerminalModel(QObject):
         self._fg = QColor(fg)
         self._bg = QColor(bg)
         self._cursor_color = QColor(cursor)
-        self._selection_color = QColor(selection) if selection.startswith("#") else QColor(205, 192, 236, 80)
+        # build_palette hands over #AARRGGBB; QColor parses that directly. Keep
+        # the default when the string is unusable rather than painting an
+        # invalid colour.
+        candidate = QColor(selection)
+        if candidate.isValid():
+            self._selection_color = candidate
         if palette:
             self._palette = [QColor(c) for c in palette]
         self._schedule_render()

@@ -31,16 +31,20 @@ _CLASSIC = {
 }
 
 
-def _rgba(color: str, alpha: float) -> str:
-    """Turn #AARRGGBB / #RRGGBB into a QML rgba() string."""
+def _qcolor(color: str, alpha: float) -> str:
+    """Return a themed colour in the ``#AARRGGBB`` form QColor parses.
+
+    The terminal model builds QColors from these strings, not QML colours, and
+    ``QColor("rgba(...)")`` is invalid — which silently discarded the themed
+    selection colour and fell back to a hard-coded one.
+    """
     value = color.lstrip("#")
     if len(value) == 8:
-        a = int(value[0:2], 16) / 255.0
-        r, g, b = value[2:4], value[4:6], value[6:8]
-    else:
-        a = alpha
-        r, g, b = value[0:2], value[2:4], value[4:6]
-    return f"rgba({int(r, 16)},{int(g, 16)},{int(b, 16)},{a:.3f})"
+        return "#" + value.upper()
+    if len(value) != 6:
+        return color
+    a = max(0, min(255, int(round(alpha * 255))))
+    return f"#{a:02X}{value.upper()}"
 
 
 def build_palette(settings: dict) -> dict:
@@ -65,7 +69,7 @@ def build_palette(settings: dict) -> dict:
             "bg": _CLASSIC["bg"],
             "fg": _CLASSIC["fg"],
             "cursor": _CLASSIC["cursor"],
-            "selection": "rgba(90,95,110,0.45)",
+            "selection": _qcolor("#5a5f6e", 0.45),
             "ansi": list(_ANSI_DARK),
         }
 
@@ -73,6 +77,6 @@ def build_palette(settings: dict) -> dict:
         "bg": surface_lowest if dark else surface,
         "fg": on_surface,
         "cursor": primary,
-        "selection": _rgba(primary, 0.32),
+        "selection": _qcolor(primary, 0.32),
         "ansi": list(_ANSI_DARK if dark else _ANSI_LIGHT),
     }
