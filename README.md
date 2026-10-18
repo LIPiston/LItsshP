@@ -147,7 +147,21 @@ left and the remote pane on the right. Click a row to tick it, double-click a
 folder to enter it, then use **Upload ↑** / **Download ↓**. Directories transfer
 recursively.
 
-Transfers go through the OpenSSH `sftp` client in batch mode, invoking the same
+Both panes open at a usable folder rather than assuming one is available:
+
+- the local pane starts in your profile directory, or in `%TEMP%\LItsshP` when
+  the profile is not writable;
+- the remote pane starts in the account's `~`, and if that cannot be listed it
+  walks `~` → `/` → `/tmp` and opens the first readable one, telling you which
+  folder it settled on.
+
+A folder that does not exist yet but could be created counts as usable, so a
+download target like `D:\incoming` works before the folder exists. If the
+destination really cannot be written, the download falls back to
+`%TEMP%\LItsshP` instead of failing, and permission problems are reported in
+the status line rather than leaving a blank pane.
+
+Transfers go through the OpenSSH `sftp` client, invoking the same
 `~/.ssh/config` entry the session uses, so ProxyJump, `IdentityFile` and agent
 settings all apply. This deliberately avoids trzsz, which would require `trz`
 and `tsz` to be installed on the server first; plain SFTP works against any
