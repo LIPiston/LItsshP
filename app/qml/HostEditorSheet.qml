@@ -378,12 +378,12 @@ Item {
                         border.color: Theme.color.outlineVariant
 
                         // A plain TextEdit inside a clipping Item, with the
-                        // scroll offset applied to `y` by hand. Qt's Flickable
-                        // takes a different scene-graph path when it both
-                        // clips and has scrollable content, and on this D3D11
-                        // backend a TextEdit inside it paints nothing at all
-                        // (reproduced with a minimal case). A TextEdit that is
-                        // simply clipped renders normally.
+                        // scroll offset applied to `y` by hand. The Flickable
+                        // version is the obvious layout, but it showed no text
+                        // in the running app; a minimal Flickable + TextEdit
+                        // case does render, so the trigger was never isolated.
+                        // A clipped TextEdit renders reliably, so that is the
+                        // shape kept here and in the command composer.
                         Item {
                             id: rawViewport
                             anchors.fill: parent

@@ -82,11 +82,12 @@ Item {
             opacity: 0.85
         }
 
-        // A bare TextEdit, not a TextEdit inside a Flickable: on this render
-        // backend a TextEdit nested in a Flickable paints no text at all
-        // (verified with a minimal case). The field therefore grows with its
-        // content up to maxEditorHeight and scrolls internally beyond that;
-        // the composer's own height is driven by editorHeight.
+        // A bare TextEdit, not a TextEdit inside a Flickable. The Flickable
+        // layout is the obvious one, but it showed no text in the running app;
+        // a minimal Flickable + TextEdit case does render, so the exact
+        // trigger was never isolated. This shape works and is used on purpose.
+        // The field grows with its content up to maxEditorHeight and scrolls
+        // internally beyond that; the composer's height follows editorHeight.
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
