@@ -22,6 +22,24 @@ Item {
 
     function takeFocus() { surface.forceActiveFocus() }
 
+    property bool searchVisible: false
+    property bool searchCaseSensitive: false
+
+    function openSearch() {
+        if (!root.model) return
+        root.searchVisible = true
+        Qt.callLater(function () {
+            searchField.forceActiveFocus()
+            searchField.selectAll()
+        })
+    }
+
+    function closeSearch() {
+        root.searchVisible = false
+        if (root.model) root.model.clearSearch()
+        takeFocus()
+    }
+
     // Window-level shortcuts (Ctrl+Shift+C/V) resolve through these; keeping
     // them on the pane means the shortcut does not need to know where the
     // terminal model lives.
@@ -143,6 +161,12 @@ Item {
             if (event.key === Qt.Key_End && (event.modifiers & Qt.ControlModifier)) {
                 root.model.scrollToBottom(); event.accepted = true; return
             }
+            if (event.key === Qt.Key_F && event.modifiers & Qt.ControlModifier) {
+                root.openSearch(); event.accepted = true; return
+            }
+            if (event.key === Qt.Key_Escape && root.searchVisible) {
+                root.closeSearch(); event.accepted = true; return
+            }
             if (root.model.handleKey(event.key, event.text, event.modifiers))
                 event.accepted = true
         }
@@ -172,6 +196,175 @@ Item {
               enabled: root.model !== null && root.model.hasSelection,
               action: function() { if (root.model) root.model.clearSelection() } }
         ]
+    }
+
+    // ── Scrollback search ──────────────────────────────────────────────
+    // Ctrl+F opens this strip over the top of the pane. The model owns the
+    // hits and their row coordinates; the strip only drives it, so matches
+    // found before new output arrived stay valid.
+    Rectangle {
+        id: searchBar
+        visible: root.searchVisible
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 10
+        width: Math.min(420, parent.width - 20)
+        height: 40
+        radius: 8
+        color: Theme.color.surfaceContainerHigh
+        border.width: 1
+        border.color: Theme.color.outlineVariant
+        z: 20
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 6
+            spacing: 6
+
+            Text {
+                text: "search"
+                font.family: Theme.iconFont.name
+                font.pixelSize: 16
+                color: Theme.color.onSurfaceVariantColor
+            }
+
+            TextInput {
+                id: searchField
+                Layout.fillWidth: true
+                verticalAlignment: TextInput.AlignVCenter
+                font.family: Theme.typography.bodyMedium.family
+                font.pixelSize: 13
+                color: Theme.color.onSurfaceColor
+                selectionColor: Theme.color.primary
+                selectedTextColor: Theme.color.onPrimaryColor
+                clip: true
+                onTextChanged: if (root.model)
+                                   root.model.setSearch(text, root.searchCaseSensitive)
+                Keys.onDownPressed: if (root.model) root.model.nextMatch(1)
+                Keys.onUpPressed: if (root.model) root.model.nextMatch(-1)
+                Keys.onPressed: function(event) {
+                    if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter) return
+                    if (root.model) root.model.nextMatch(
+                        (event.modifiers & Qt.ShiftModifier) ? -1 : 1)
+                    event.accepted = true
+                }
+                Keys.onEscapePressed: root.closeSearch()
+
+                Text {
+                    anchors.fill: parent
+                    verticalAlignment: Text.AlignVCenter
+                    visible: !parent.text
+                    text: "Find in scrollback"
+                    font: parent.font
+                    color: Theme.color.onSurfaceVariantColor
+                    opacity: 0.6
+                }
+            }
+
+            Text {
+                visible: searchField.text.length > 0
+                text: root.model && root.model.searchCount > 0
+                      ? root.model.searchCurrent + " / " + root.model.searchCount
+                      : "0"
+                font.family: Theme.typography.labelSmall.family
+                font.pixelSize: 10
+                color: root.model && root.model.searchCount > 0
+                       ? Theme.color.onSurfaceVariantColor : Theme.color.error
+            }
+
+            // Match case. Toggling re-runs the query through the same setSearch
+            // call the field uses, so the hit list and the highlight agree.
+            Rectangle {
+                Layout.preferredWidth: 34
+                Layout.preferredHeight: 24
+                radius: 4
+                color: root.searchCaseSensitive
+                       ? Theme.color.secondaryContainer
+                       : (caseHover.containsMouse ? Theme.color.surfaceContainerHighest
+                                                  : "transparent")
+                Text {
+                    anchors.centerIn: parent
+                    text: "Aa"
+                    font.family: Theme.typography.labelSmall.family
+                    font.pixelSize: 11
+                    font.weight: Font.DemiBold
+                    color: root.searchCaseSensitive
+                           ? Theme.color.onSecondaryContainerColor
+                           : Theme.color.onSurfaceVariantColor
+                }
+                MouseArea {
+                    id: caseHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        root.searchCaseSensitive = !root.searchCaseSensitive
+                        if (root.model)
+                            root.model.setSearch(searchField.text,
+                                                 root.searchCaseSensitive)
+                    }
+                }
+            }
+
+            Item {
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 24
+                Text {
+                    anchors.centerIn: parent
+                    text: "keyboard_arrow_up"
+                    font.family: Theme.iconFont.name
+                    font.pixelSize: 16
+                    color: prevHover.containsMouse ? Theme.color.onSurfaceColor
+                                                   : Theme.color.onSurfaceVariantColor
+                }
+                MouseArea {
+                    id: prevHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: if (root.model) root.model.nextMatch(-1)
+                }
+            }
+            Item {
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 24
+                Text {
+                    anchors.centerIn: parent
+                    text: "keyboard_arrow_down"
+                    font.family: Theme.iconFont.name
+                    font.pixelSize: 16
+                    color: nextHover.containsMouse ? Theme.color.onSurfaceColor
+                                                   : Theme.color.onSurfaceVariantColor
+                }
+                MouseArea {
+                    id: nextHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: if (root.model) root.model.nextMatch(1)
+                }
+            }
+            Item {
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 24
+                Text {
+                    anchors.centerIn: parent
+                    text: "close"
+                    font.family: Theme.iconFont.name
+                    font.pixelSize: 15
+                    color: closeSearchHover.containsMouse ? Theme.color.onSurfaceColor
+                                                          : Theme.color.onSurfaceVariantColor
+                }
+                MouseArea {
+                    id: closeSearchHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.closeSearch()
+                }
+            }
+        }
     }
 
     // Overlay for terminated sessions; scrollback stays readable underneath.

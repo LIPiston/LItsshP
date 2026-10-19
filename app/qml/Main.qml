@@ -72,6 +72,14 @@ Window {
     function focusSearch() { sidebar.focusSearch() }
     function openTransfer(alias) { transferWindow.open(alias) }
     function openTunnels() { tunnelSheet.open() }
+    function openKeys() { keySheet.open() }
+    function openSnippets() { snippetSheet.open() }
+
+    // Choosing a tab to show beside the current one. The picker lists open
+    // tabs and hosts: a split is usually "the same command on another server".
+    function openSplitPicker() {
+        splitPicker.open()
+    }
 
     // Frameless window: the brand block in the sidebar header doubles as the
     // drag handle, so the title area has to forward press/drag to the window.
@@ -107,6 +115,7 @@ Window {
             onDeleteRequested: (alias) => appWindow.confirmDeleteHost(alias)
             onAddRequested: appWindow.openHostEditor("")
             onSettingsRequested: appWindow.openSettings()
+            onKeysRequested: appWindow.openKeys()
         }
 
         Rectangle {
@@ -194,15 +203,208 @@ Window {
         window: appWindow
     }
 
+    KeyManagerSheet {
+        id: keySheet
+        anchors.fill: parent
+        window: appWindow
+    }
+
+    SnippetSheet {
+        id: snippetSheet
+        anchors.fill: parent
+        window: appWindow
+    }
+
+    // Small chooser for the split's other pane. Opening a host here creates a
+    // tab and splits it, so the list can mix open sessions and idle hosts.
+    Item {
+        id: splitPicker
+        anchors.fill: parent
+        visible: false
+        z: 1400
+
+        function open() {
+            splitQuery = ""
+            splitFilter.text = ""
+            rebuildSplit()
+            visible = true
+            Qt.callLater(function () { splitFilter.forceActiveFocus() })
+        }
+
+        property string splitQuery: ""
+
+        function rebuildSplit() {
+            splitModel.clear()
+            var needle = splitQuery.trim().toLowerCase()
+            for (var i = 0; i < App.tabs.length; i++) {
+                if (i === App.activeIndex) continue
+                var tabLabel = App.tabs[i].host
+                if (needle !== "" && tabLabel.toLowerCase().indexOf(needle) < 0) continue
+                splitModel.append({ kind: "tab", id: String(i),
+                                    title: tabLabel, subtitle: "open tab" })
+            }
+            for (var h = 0; h < App.hosts.length; h++) {
+                var host = App.hosts[h]
+                var hay = (host.alias + " " + host.hostname + " " + (host.user || "")).toLowerCase()
+                if (needle !== "" && hay.indexOf(needle) < 0) continue
+                splitModel.append({ kind: "host", id: host.alias,
+                                    title: host.alias, subtitle: host.hostname })
+            }
+            splitList.currentIndex = splitModel.count > 0 ? 0 : -1
+        }
+
+        function choose(index) {
+            if (index < 0 || index >= splitModel.count) return
+            var item = splitModel.get(index)
+            splitPicker.visible = false
+            if (item.kind === "tab") App.splitWith(parseInt(item.id))
+            else App.splitHost(item.id)
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#000000"
+            opacity: 0.4
+            MouseArea { anchors.fill: parent; onClicked: splitPicker.visible = false }
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(460, splitPicker.width - 100)
+            height: Math.min(420, 90 + splitModel.count * 40)
+            radius: 14
+            color: Theme.color.surfaceContainerHigh
+            border.width: 1
+            border.color: Theme.color.outline
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 48
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 14
+                        spacing: 8
+                        Text {
+                            text: "vertical_split"
+                            font.family: Theme.iconFont.name
+                            font.pixelSize: 17
+                            color: Theme.color.onSurfaceVariantColor
+                        }
+                        TextInput {
+                            id: splitFilter
+                            Layout.fillWidth: true
+                            verticalAlignment: TextInput.AlignVCenter
+                            font.family: Theme.typography.bodyMedium.family
+                            font.pixelSize: 13
+                            color: Theme.color.onSurfaceColor
+                            selectionColor: Theme.color.primary
+                            selectedTextColor: Theme.color.onPrimaryColor
+                            clip: true
+                            onTextChanged: {
+                                splitPicker.splitQuery = text
+                                splitPicker.rebuildSplit()
+                            }
+                            Keys.onReturnPressed: splitPicker.choose(splitList.currentIndex)
+                            Keys.onEscapePressed: splitPicker.visible = false
+                            Text {
+                                anchors.fill: parent
+                                verticalAlignment: Text.AlignVCenter
+                                visible: !parent.text
+                                text: "Split with a tab or host…"
+                                font: parent.font
+                                color: Theme.color.onSurfaceVariantColor
+                                opacity: 0.6
+                            }
+                        }
+                    }
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        width: parent.width
+                        height: 1
+                        color: Theme.color.outlineVariant
+                    }
+                }
+
+                ListView {
+                    id: splitList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    model: splitModel
+                    clip: true
+                    currentIndex: 0
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+                        width: splitList.width
+                        height: 40
+                        color: index === splitList.currentIndex
+                               ? Theme.color.primaryContainer : "transparent"
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 16
+                            anchors.rightMargin: 16
+                            spacing: 10
+                            Text {
+                                text: modelData.kind === "tab" ? "tab" : "dns"
+                                font.family: Theme.iconFont.name
+                                font.pixelSize: 15
+                                color: Theme.color.onSurfaceVariantColor
+                            }
+                            Text {
+                                text: modelData.title
+                                font.family: Theme.typography.bodyMedium.family
+                                font.pixelSize: 12
+                                color: Theme.color.onSurfaceColor
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: modelData.subtitle
+                                elide: Text.ElideMiddle
+                                font.family: Theme.typography.labelSmall.family
+                                font.pixelSize: 10
+                                color: Theme.color.onSurfaceVariantColor
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onEntered: splitList.currentIndex = index
+                            onClicked: splitPicker.choose(index)
+                        }
+                    }
+                }
+            }
+        }
+
+        ListModel { id: splitModel }
+    }
+
     CommandPalette {
         id: commandPalette
         anchors.fill: parent
         window: appWindow
         onHostChosen: (alias) => App.openHost(alias)
+        onSnippetChosen: (name, command) => App.runSnippet(name, command)
         onActionChosen: (action) => {
             if (action === "new-host") appWindow.openHostEditor("")
             else if (action === "settings") appWindow.openSettings()
+            else if (action === "snippets") appWindow.openSnippets()
             else if (action === "tunnels") appWindow.openTunnels()
+            else if (action === "split") appWindow.openSplitPicker()
+            else if (action === "restore") {
+                var res = App.restoreLayout()
+                if (!res.ok) App.toast(res.error || "Nothing to restore")
+            }
+            else if (action === "keys") appWindow.openKeys()
             else if (action === "toggle-sidebar") App.setSetting("sidebarVisible", !(App.settings.sidebarVisible !== false))
             else if (action === "refresh") App.refreshHosts()
         }
@@ -235,6 +437,17 @@ Window {
     }
     Shortcut { sequences: ["Ctrl+R"]; onActivated: App.reconnectActive() }
     Shortcut { sequences: ["Ctrl+Shift+R"]; onActivated: App.refreshHosts() }
+    // Ctrl+F is a window shortcut rather than a pane key handler so it works
+    // whether focus is in the terminal, the composer or the sidebar.
+    Shortcut { sequences: ["Ctrl+F"]; onActivated: workspace.openSearch() }
+    Shortcut { sequences: ["Ctrl+Shift+D"]; onActivated: appWindow.openSplitPicker() }
+    Shortcut {
+        sequences: ["Ctrl+Shift+O"]
+        onActivated: {
+            var res = App.restoreLayout()
+            if (!res.ok) App.toast(res.error || "Nothing to restore")
+        }
+    }
     // Ctrl+Shift+C / Ctrl+Shift+V are handled inside TerminalPane rather than
     // here: a window-level Shortcut would steal them from the composer and
     // from any focused text field, and would double-fire the paste.

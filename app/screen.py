@@ -56,6 +56,14 @@ class TerminalScreen(Screen):
     def clear_history(self) -> None:
         self._history.clear()
 
+    def all_rows(self) -> list[list[Char]]:
+        """Scrollback followed by the live screen, oldest first.
+
+        Search needs both halves and their order; ``history_view`` only ever
+        returns a viewport's worth of rows.
+        """
+        return list(self._history) + [self._line(y) for y in range(self.lines)]
+
     def _line(self, y: int) -> list[Char]:
         row = self.buffer[y]
         return [row[x] for x in range(self.columns)]

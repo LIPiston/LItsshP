@@ -12,6 +12,7 @@ Item {
 
     readonly property var settings: App.settings
     readonly property var fonts: App.availableFonts()
+    readonly property var fallbacks: App.fallbackFonts()
 
     function open() {
         scrim.visible = true
@@ -257,8 +258,36 @@ Item {
                         }
                     }
 
-                    SectionLabel { text: "Behaviour" }
+                    // Fallback font. Only glyphs the primary family lacks come
+                    // from here, which is what makes Chinese render at all in
+                    // a terminal font that ships no CJK.
+                    ComboBox {
+                        Layout.fillWidth: true
+                        model: ["None (system fallback)"].concat(root.fallbacks)
+                        type: "outlined"
+                        label: "Fallback for missing glyphs"
+                        labelBackgroundColor: Theme.color.surfaceContainerLow
+                        currentIndex: {
+                            var chosen = root.settings.fontFallback || ""
+                            var at = root.fallbacks.indexOf(chosen)
+                            return at < 0 ? 0 : at + 1
+                        }
+                        onActivated: (index) => App.setSetting(
+                            "fontFallback", index === 0 ? "" : model[index])
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                        text: "Used only for characters the first font has no glyph for — "
+                              + "Chinese, Japanese and other scripts. The cell size still "
+                              + "comes from the primary font."
+                        font.family: Theme.typography.bodySmall.family
+                        font.pixelSize: 11
+                        color: Theme.color.onSurfaceVariantColor
+                        opacity: 0.8
+                    }
 
+                    SectionLabel { text: "Behaviour" }
                     SettingSwitch {
                         label: "Confirm before closing a running session"
                         checked: root.settings.confirmClose !== false
@@ -274,8 +303,94 @@ Item {
                         checked: root.settings.composerVisible !== false
                         onToggled: App.setSetting("composerVisible", checked)
                     }
+                    SettingSwitch {
+                        label: "Reconnect automatically when a connection drops"
+                        checked: root.settings.autoReconnect !== false
+                        onToggled: App.setSetting("autoReconnect", checked)
+                    }
+                    SettingSwitch {
+                        label: "Write session output to a log file"
+                        checked: root.settings.sessionLog === true
+                        onToggled: App.setSetting("sessionLog", checked)
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: root.settings.sessionLog === true
+                        spacing: 10
+                        Text {
+                            Layout.fillWidth: true
+                            text: App.logsPath()
+                            elide: Text.ElideMiddle
+                            font.family: Theme.typography.bodySmall.family
+                            font.pixelSize: 11
+                            color: Theme.color.onSurfaceVariantColor
+                        }
+                        Button {
+                            text: "Open folder"
+                            type: "text"
+                            icon: "folder_open"
+                            onClicked: App.revealLogs()
+                        }
+                    }
+
+                    Text {
+                        Layout.topMargin: 10
+                        text: "Keep-alive interval"
+                        font.family: Theme.typography.labelMedium.family
+                        font.pixelSize: 12
+                        color: Theme.color.onSurfaceVariantColor
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                        text: "Seconds between keep-alive probes. Sent as "
+                              + "ServerAliveInterval only when the host does not set it."
+                        font.family: Theme.typography.bodySmall.family
+                        font.pixelSize: 11
+                        color: Theme.color.onSurfaceVariantColor
+                        opacity: 0.85
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        SegmentedButton {
+                            buttons: [
+                                { text: "Off", selected: (root.settings.keepalive || 0) === 0 },
+                                { text: "15 s", selected: root.settings.keepalive === 15 },
+                                { text: "30 s", selected: (root.settings.keepalive || 30) === 30 || root.settings.keepalive === undefined },
+                                { text: "60 s", selected: root.settings.keepalive === 60 }
+                            ]
+                            onClicked: (index) => {
+                                var values = [0, 15, 30, 60]
+                                App.setSetting("keepalive", values[index])
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
 
                     SectionLabel { text: "Configuration" }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        Text {
+                            Layout.fillWidth: true
+                            text: "SSH keys and trusted hosts in ~/.ssh"
+                            font.family: Theme.typography.bodySmall.family
+                            font.pixelSize: 12
+                            color: Theme.color.onSurfaceVariantColor
+                        }
+                        Button {
+                            text: "Manage keys"
+                            type: "tonal"
+                            icon: "key"
+                            onClicked: {
+                                root.close()
+                                root.window.openKeys()
+                            }
+                        }
+                    }
 
                     RowLayout {
                         Layout.fillWidth: true

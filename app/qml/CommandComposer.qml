@@ -17,6 +17,10 @@ Item {
     property bool enabled: model !== null
     property var history: []
     property int historyIndex: 0
+    // With a split and broadcast on, the composer sends to every pane instead
+    // of only the active one. Both paths type the same text, so the panes stay
+    // in step.
+    property bool broadcast: false
 
     signal escapePressed()
 
@@ -37,7 +41,10 @@ Item {
             root.history = hist
         }
         root.historyIndex = root.history.length
-        root.model.runCommand(payload, false)
+        if (root.broadcast)
+            App.broadcast(payload)
+        else
+            root.model.runCommand(payload, false)
         input.text = ""
     }
 

@@ -19,6 +19,7 @@ Item {
     signal deleteRequested(string alias)
     signal addRequested()
     signal settingsRequested()
+    signal keysRequested()
 
     readonly property var c: Theme.color
     readonly property color hairline: c.outlineVariant
@@ -341,6 +342,11 @@ Item {
                 icon: "add"
                 label: "New host"
                 onActivated: root.addRequested()
+            }
+            FooterButton {
+                icon: "key"
+                label: "Keys"
+                onActivated: root.keysRequested()
             }
             FooterButton {
                 icon: "settings"

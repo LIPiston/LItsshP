@@ -12,11 +12,16 @@ Item {
 
     signal hostChosen(string alias)
     signal actionChosen(string action)
+    signal snippetChosen(string name, string command)
 
     readonly property var actions: [
         { kind: "action", id: "new-host", title: "New host", icon: "add" },
         { kind: "action", id: "settings", title: "Open settings", icon: "settings" },
+        { kind: "action", id: "snippets", title: "Manage snippets", icon: "code" },
+        { kind: "action", id: "split", title: "Split the terminal", icon: "vertical_split" },
+        { kind: "action", id: "restore", title: "Reopen the last session", icon: "history" },
         { kind: "action", id: "tunnels", title: "Port forwarding", icon: "swap_horiz" },
+        { kind: "action", id: "keys", title: "SSH keys and known hosts", icon: "key" },
         { kind: "action", id: "toggle-sidebar", title: "Toggle sidebar", icon: "left_panel_close" },
         { kind: "action", id: "refresh", title: "Reload ~/.ssh/config", icon: "refresh" }
     ]
@@ -63,6 +68,22 @@ Item {
                 })
             }
         }
+        // Snippets are listed as their own kind: choosing one types it into
+        // the active session rather than opening a surface.
+        var snippets = App.snippets
+        for (var s = 0; s < snippets.length; s++) {
+            var snip = snippets[s]
+            var haystack = (snip.name + " " + snip.command).toLowerCase()
+            if (needle === "" || haystack.indexOf(needle) >= 0) {
+                model.append({
+                    kind: "snippet",
+                    id: snip.name,
+                    title: snip.name,
+                    subtitle: snip.command,
+                    icon: "keyboard_return"
+                })
+            }
+        }
         currentIndex = model.count > 0 ? 0 : -1
     }
 
@@ -71,6 +92,7 @@ Item {
         var item = model.get(index)
         close()
         if (item.kind === "host") root.hostChosen(item.id)
+        else if (item.kind === "snippet") root.snippetChosen(item.id, item.subtitle)
         else root.actionChosen(item.id)
     }
 

@@ -108,6 +108,8 @@ class HostEntry:
     has_password: bool
     raw: str
     source: str
+    password_source: str = ""       # encrypted | plain | command | ""
+    startup_command: str = ""       # #!! StartupCommand, LItsshP's own extension
 
 
 class ConfigFile:
@@ -458,9 +460,15 @@ class ConfigStore:
                 proxy_jump=self._first_value(alias, "ProxyJump"),
                 group_labels=groups.split(),
                 hidden=hidden,
-                has_password=bool(self._stored_password(alias)),
+                # A PasswordCommand hides its secret, but the host is still
+                # configured to authenticate without prompting, which is what
+                # the key marker in the sidebar means.
+                has_password=bool(self._stored_password(alias))
+                             or bool(self._first_ext(alias, "PasswordCommand")),
                 raw="".join(block.lines),
                 source=str(cfg.path),
+                password_source=self._password_source(alias),
+                startup_command=self._first_ext(alias, "StartupCommand"),
             ))
         entries.sort(key=lambda e: (e.group_labels[0].lower() if e.group_labels else "", e.alias.lower()))
         return entries
@@ -482,8 +490,29 @@ class ConfigStore:
             return plain
         return None
 
+    def _password_source(self, alias: str) -> str:
+        """How the password is stored, so the editor can keep the same form.
+
+        tssh resolves ``encPassword`` → ``PasswordCommand`` → ``Password``; the
+        editor must not silently convert one form into another, because a
+        ``PasswordCommand`` has no plain-text value to round-trip.
+        """
+        if self._first_ext(alias, "encPassword"):
+            return "encrypted"
+        if self._first_ext(alias, "PasswordCommand"):
+            return "command"
+        if self._first_ext(alias, "Password"):
+            return "plain"
+        if self._first_ext(alias, "encQuestionAnswer1"):
+            return "answer"
+        return ""
+
     def password(self, alias: str) -> str | None:
         return self._stored_password(alias)
+
+    def option(self, alias: str, key: str) -> str:
+        """Effective value of a plain OpenSSH option for ``alias``."""
+        return self._first_value(alias, key)
 
     # ------------------------------------------------------------- forwarding
 
@@ -595,20 +624,49 @@ class ConfigStore:
 
         password = fields.get("password")
         if password:
-            encoded = secret.encode_secret(password)
-            cfg.set_option(block, "encPassword", encoded, extended=True)
-            cfg.set_option(block, "encQuestionAnswer1", encoded, extended=True)
+            source = str(fields.get("password_source") or
+                         self._password_source(old_alias))
+            self._write_password(cfg, block, password, source)
         elif password == "":
-            cfg.set_option(block, "encPassword", None, extended=True)
-            cfg.set_option(block, "encQuestionAnswer1", None, extended=True)
-            cfg.set_option(block, "Password", None, extended=True)
+            self._write_password(cfg, block, "", self._password_source(old_alias))
 
         if "forwards" in fields:
             self._write_forwards(cfg, block, fields["forwards"])
 
+        if "startup_command" in fields:
+            startup = str(fields.get("startup_command") or "").strip()
+            cfg.set_option(block, "StartupCommand", startup or None, extended=True)
+
         cfg.save()
         self.reload()
         return new_alias
+
+    def _write_password(self, cfg: ConfigFile, block: Block, value: str,
+                        source: str) -> None:
+        """Write the password back in the form it was stored in.
+
+        A plain ``#!! Password`` stays plain, an encrypted one stays encrypted.
+        Converting on every save would rewrite the file for no reason, and a
+        ``PasswordCommand`` has no secret to write at all — clearing the field
+        must not delete a command the editor never showed.
+        """
+        if source == "plain" and value:
+            cfg.set_option(block, "encPassword", None, extended=True)
+            cfg.set_option(block, "encQuestionAnswer1", None, extended=True)
+            cfg.set_option(block, "Password", value, extended=True)
+            return
+        if value:
+            encoded = secret.encode_secret(value)
+            cfg.set_option(block, "Password", None, extended=True)
+            cfg.set_option(block, "encPassword", encoded, extended=True)
+            cfg.set_option(block, "encQuestionAnswer1", encoded, extended=True)
+            return
+        # Clearing: remove both forms the editor can show, but leave a
+        # PasswordCommand alone — it is part of the config the user wrote by
+        # hand and this form has no field for it.
+        cfg.set_option(block, "encPassword", None, extended=True)
+        cfg.set_option(block, "encQuestionAnswer1", None, extended=True)
+        cfg.set_option(block, "Password", None, extended=True)
 
     def _write_forwards(self, cfg: ConfigFile, block: Block,
                         rules: list) -> None:
@@ -700,6 +758,9 @@ class ConfigStore:
         groups = _normalise_groups(fields.get("group_labels", ""))
         if groups:
             options.append((f"{EXT_PREFIX} GroupLabels", groups))
+        startup = (fields.get("startup_command") or "").strip()
+        if startup:
+            options.append((f"{EXT_PREFIX} StartupCommand", startup))
         for rule in fields.get("forwards") or []:
             kind = str(rule.get("kind", "")).upper()
             spec = str(rule.get("spec", "")).strip()
@@ -708,9 +769,12 @@ class ConfigStore:
                 options.append((key, spec))
         password = fields.get("password") or ""
         if password:
-            encoded = secret.encode_secret(password)
-            options.append((f"{EXT_PREFIX} encPassword", encoded))
-            options.append((f"{EXT_PREFIX} encQuestionAnswer1", encoded))
+            if str(fields.get("password_source") or "") == "plain":
+                options.append((f"{EXT_PREFIX} Password", password))
+            else:
+                encoded = secret.encode_secret(password)
+                options.append((f"{EXT_PREFIX} encPassword", encoded))
+                options.append((f"{EXT_PREFIX} encQuestionAnswer1", encoded))
         return options
 
     def _main_file(self) -> ConfigFile:

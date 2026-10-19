@@ -9,18 +9,32 @@ terminal state in one Python object that QML can drive.
 
 from __future__ import annotations
 
+import re
 import time
 
-from PySide6.QtCore import Property, QObject, QRectF, Qt, QTimer, Signal, Slot
+from PySide6.QtCore import (Property, QObject, QPointF, QRectF, Qt, QTimer,
+                            Signal, Slot)
 from PySide6.QtGui import (QColor, QFont, QFontMetricsF, QGuiApplication, QImage,
-                           QPainter)
+                           QPainter, QRawFont)
 from PySide6.QtQuick import QQuickImageProvider
 
 from pyte.streams import Stream
+from wcwidth import wcswidth
 
 from .screen import TerminalScreen
 
 _CUBE = (0, 95, 135, 175, 215, 255)
+
+# Session logs keep the printable text. Escape sequences are removed rather
+# than replayed, because the log is for reading and grepping, not for a
+# faithful terminal replay.
+_ANSI_RE = re.compile(
+    r"\x1b\[[0-9;?]*[ -/]*[@-~]"      # CSI
+    r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"  # OSC
+    r"|\x1b[()][A-Za-z0-9]"           # charset selection
+    r"|\x1b[@-Z\\-_]"                 # two-byte escapes
+)
+_CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 ANSI_NAMES = {
     "black": 0, "red": 1, "green": 2, "brown": 3, "blue": 4,
@@ -57,6 +71,7 @@ class TerminalModel(QObject):
     sessionExited = Signal(int)
     selectionChanged = Signal()
     activityChanged = Signal()
+    searchChanged = Signal()
 
     def __init__(self, session_id: int, parent: QObject | None = None):
         super().__init__(parent)
@@ -66,13 +81,22 @@ class TerminalModel(QObject):
         self._pty = None
 
         self._family = "Cascadia Mono"
+        # Qt's `setFamilies` list is a *resolution* order (use the second only
+        # if the first is missing entirely), not a per-glyph fallback: with
+        # ["Cascadia Mono", "Microsoft YaHei"] a Chinese glyph still came from
+        # the system default (measured: SimSun), whatever the user picked.
+        # So the fallback is applied here, per character, against the
+        # coverage of the primary font.
+        self._fallback = ""
         self._pixel_size = 14
+        self._glyph_cache: dict[str, bool] = {}
+        self._raw_primary: QRawFont | None = None
         self._font = QFont(self._family)
         self._font.setStyleHint(QFont.Monospace)
         self._font.setPixelSize(self._pixel_size)
         self._font.setFixedPitch(True)
         self._metrics = QFontMetricsF(self._font)
-        self._cell_w = max(6.0, self._metrics.horizontalAdvance("W") * 1.02)
+        self._cell_w = max(6.0, self._metrics.horizontalAdvance("W"))
         self._cell_h = max(10.0, self._metrics.height())
         self._bold_font = QFont(self._font)
         self._bold_font.setBold(True)
@@ -81,6 +105,10 @@ class TerminalModel(QObject):
         self._bold_italic_font = QFont(self._font)
         self._bold_italic_font.setBold(True)
         self._bold_italic_font.setItalic(True)
+        self._fallback_font = QFont(self._font)
+        self._fallback_bold = QFont(self._bold_font)
+        self._fallback_italic = QFont(self._italic_font)
+        self._fallback_bold_italic = QFont(self._bold_italic_font)
 
         self._width = 800
         self._height = 480
@@ -90,6 +118,10 @@ class TerminalModel(QObject):
         self._bg = QColor("#141218")
         self._cursor_color = QColor("#cdc0ec")
         self._selection_color = QColor(205, 192, 236, 80)
+        # Search highlights: the active hit is stronger than the rest, so
+        # "next" is visible without moving the viewport again.
+        self._search_color = QColor(255, 213, 79, 150)
+        self._search_dim_color = QColor(255, 213, 79, 60)
         self._palette = [QColor(c) for c in DEFAULT_PALETTE]
 
         self._scrollback = 0
@@ -104,6 +136,27 @@ class TerminalModel(QObject):
         self._dirty = True
         self._cursor_on = True
         self._last_output = time.monotonic()
+
+        # Search state. Hits are stored in absolute row coordinates (row 0 is
+        # the oldest remembered line) so they stay valid as the screen scrolls
+        # and as output appends rows behind them.
+        self._search_query = ""
+        self._search_hits: list[tuple[int, int, int]] = []   # (row, col, length)
+        self._search_index = -1
+        self._search_case = False
+
+        # Session log. The file is opened by the controller, which owns the
+        # policy (enabled setting, folder); the model only writes text.
+        self._log_file = None
+        self._log_buffer: list[str] = []
+
+        # Buffered output would otherwise only reach disk when the buffer
+        # passes 8 KB or the session ends, leaving a log that looks empty
+        # while the session is alive. A slow tick keeps the file current
+        # without a write per PTY chunk.
+        self._log_timer = QTimer(self)
+        self._log_timer.setInterval(1000)
+        self._log_timer.timeout.connect(self.flushLog)
 
         self._paint_timer = QTimer(self)
         self._paint_timer.setSingleShot(True)
@@ -230,6 +283,12 @@ class TerminalModel(QObject):
         added = self._screen.history_size - before
         if self._scrollback:
             self._scrollback = min(self._screen.history_size, self._scrollback + added)
+        self._append_log(data)
+        # Appending rows shifts absolute search positions; re-running a short
+        # query over the live screen is cheaper than tracking the shift, and
+        # scrollback rows never change once written.
+        if self._search_query:
+            self._run_search(keep_index=True)
         self._schedule_render(full=True)
         self.activityChanged.emit()
 
@@ -547,29 +606,224 @@ class TerminalModel(QObject):
             self._scrollback = 0
             self._schedule_render()
 
+    # ----------------------------------------------------------------- search
+
+    def _get_search_query(self) -> str:
+        return self._search_query
+
+    searchQuery = Property(str, _get_search_query, notify=searchChanged)
+
+    def _get_search_count(self) -> int:
+        return len(self._search_hits)
+
+    searchCount = Property(int, _get_search_count, notify=searchChanged)
+
+    def _get_search_current(self) -> int:
+        """1-based position of the highlighted hit, 0 when there is none."""
+        return self._search_index + 1 if self._search_index >= 0 else 0
+
+    searchCurrent = Property(int, _get_search_current, notify=searchChanged)
+
+    @Slot(str, bool)
+    def setSearch(self, query: str, case_sensitive: bool = False) -> None:
+        """Highlight ``query`` across scrollback and select the newest hit."""
+        self._search_query = query or ""
+        self._search_case = bool(case_sensitive)
+        self._run_search(keep_index=False)
+        if self._search_hits:
+            self._jump_to(len(self._search_hits) - 1)
+
+    @Slot()
+    def clearSearch(self) -> None:
+        if not self._search_query and not self._search_hits:
+            return
+        self._search_query = ""
+        self._search_hits = []
+        self._search_index = -1
+        self.searchChanged.emit()
+        self._schedule_render()
+
+    @Slot(int)
+    def nextMatch(self, delta: int = 1) -> None:
+        if not self._search_hits:
+            return
+        index = self._search_index + (1 if delta >= 0 else -1)
+        self._jump_to(index % len(self._search_hits))
+
+    def _run_search(self, keep_index: bool) -> None:
+        needle = self._search_query
+        if not needle:
+            self._search_hits = []
+            self._search_index = -1
+            self.searchChanged.emit()
+            self._schedule_render()
+            return
+
+        rows = self._screen.all_rows()
+        hay = needle if self._search_case else needle.lower()
+        hits: list[tuple[int, int, int]] = []
+        for row_index, row in enumerate(rows):
+            text, columns, spans = _row_text(row)
+            if not self._search_case:
+                text = text.lower()
+            start = 0
+            while True:
+                found = text.find(hay, start)
+                if found < 0:
+                    break
+                # A match is expressed in characters; the highlight is painted
+                # in columns, and a wide character covers two of them.
+                first = columns[found]
+                width = sum(spans[found:found + len(needle)])
+                hits.append((row_index, first, width))
+                start = found + max(1, len(needle))
+
+        self._search_hits = hits
+        if not keep_index or self._search_index >= len(hits):
+            self._search_index = len(hits) - 1 if hits else -1
+        self.searchChanged.emit()
+        self._schedule_render()
+
+    def _jump_to(self, index: int) -> None:
+        if not (0 <= index < len(self._search_hits)):
+            return
+        self._search_index = index
+        row = self._search_hits[index][0]
+        history = self._screen.history_size
+        # Absolute row -> scrollback offset. Live rows (row >= history) sit at
+        # offset 0, so a match in the visible screen does not scroll at all.
+        if row < history:
+            self._scrollback = history - row
+        else:
+            self._scrollback = 0
+        self.searchChanged.emit()
+        self._schedule_render()
+
+    def _row_marks(self, y: int) -> dict[int, int]:
+        """Highlight strength per column for one viewport row.
+
+        ``2`` is the match the user jumped to, ``1`` every other match, so the
+        active hit is distinguishable without a second colour.
+        """
+        if not self._search_hits:
+            return {}
+        offset = 0 if self._screen.alt_active else self._scrollback
+        take = min(offset, self._screen.history_size)
+        absolute = self._screen.history_size - take + y
+        marks: dict[int, int] = {}
+        for index, (row, col, length) in enumerate(self._search_hits):
+            if row != absolute:
+                continue
+            strength = 2 if index == self._search_index else 1
+            for x in range(col, col + length):
+                marks[x] = max(marks.get(x, 0), strength)
+        return marks
+
+    # ------------------------------------------------------------------- log
+
+    def attachLog(self, handle) -> None:
+        """Start appending printable output to an open text file."""
+        self._log_file = handle
+        self._log_buffer = []
+        self._log_timer.start()
+
+    def detachLog(self) -> None:
+        self._log_timer.stop()
+        self.flushLog()
+        self._log_file = None
+
+    @Slot()
+    def flushLog(self) -> None:
+        if self._log_file is None or not self._log_buffer:
+            return
+        try:
+            self._log_file.write("".join(self._log_buffer))
+            self._log_file.flush()
+        except (OSError, ValueError):
+            self._log_file = None
+        self._log_buffer = []
+
+    def _append_log(self, data: str) -> None:
+        if self._log_file is None:
+            return
+        text = _ANSI_RE.sub("", data)
+        # Carriage returns redraw a line; keeping only the last revision is
+        # closer to what the user saw, and avoids a log full of half-drawn
+        # progress bars.
+        parts = text.split("\n")
+        cleaned = []
+        for part in parts:
+            # A PTY ends lines with "\r\n", so the segment after the final
+            # carriage return is the content, not the trailing blank.
+            segment = part.rstrip("\r").split("\r")[-1]
+            cleaned.append(_CTRL_RE.sub("", segment))
+        self._log_buffer.append("\n".join(cleaned))
+        if sum(len(piece) for piece in self._log_buffer) > 8192:
+            self.flushLog()
+
     # ---------------------------------------------------------------- viewport
 
-    @Slot(str, int)
-    def setFont(self, family: str, pixel_size: int) -> None:
-        self._family = family or "Cascadia Mono"
-        self._pixel_size = max(8, int(pixel_size))
-        font = QFont(self._family)
+    def _make_font(self, bold: bool = False, italic: bool = False,
+                   family: str | None = None) -> QFont:
+        font = QFont(family or self._family)
         font.setStyleHint(QFont.Monospace)
         font.setPixelSize(self._pixel_size)
         font.setFixedPitch(True)
-        self._font = font
-        self._metrics = QFontMetricsF(font)
-        self._cell_w = max(6.0, self._metrics.horizontalAdvance("W") * 1.02)
+        font.setBold(bold)
+        font.setItalic(italic)
+        return font
+
+    def _needs_fallback(self, text: str) -> bool:
+        """Whether the primary font lacks a glyph for ``text``.
+
+        Results are cached per character: a screen repaint asks this for every
+        non-ASCII glyph and the answer cannot change while the fonts do not.
+        """
+        if not self._fallback or not self._raw_primary:
+            return False
+        for ch in text:
+            known = self._glyph_cache.get(ch)
+            if known is None:
+                known = self._raw_primary.supportsCharacter(ch)
+                self._glyph_cache[ch] = known
+            if not known:
+                return True
+        return False
+
+    @Slot(str, int, str)
+    def setFont(self, family: str, pixel_size: int,
+                fallback: str = "") -> None:
+        """Set the primary family and an optional fallback for missing glyphs.
+
+        The cell width always comes from the primary font. A fallback glyph is
+        centred in its cell box when painted, never allowed to widen the grid:
+        one Chinese character on a line must not shift everything after it.
+        """
+        self._family = family or "Cascadia Mono"
+        fallback = (fallback or "").strip()
+        self._fallback = fallback if fallback != self._family else ""
+        self._pixel_size = max(8, int(pixel_size))
+        self._glyph_cache = {}
+
+        self._font = self._make_font()
+        self._metrics = QFontMetricsF(self._font)
+        # Exact advance, no padding factor: a run is drawn as one string, and
+        # a 1.02 multiplier made the last glyph of a full-width line sit
+        # ~15 px past its column (measured at 80 chars). Grid and font
+        # advance have to agree for the columns to stay aligned.
+        self._cell_w = max(6.0, self._metrics.horizontalAdvance("W"))
         self._cell_h = max(10.0, self._metrics.height())
-        for f, bold, italic in (
-            (self._bold_font, True, False),
-            (self._italic_font, False, True),
-            (self._bold_italic_font, True, True),
-        ):
-            f.setFamily(self._family)
-            f.setPixelSize(self._pixel_size)
-            f.setBold(bold)
-            f.setItalic(italic)
+
+        self._raw_primary = QRawFont.fromFont(self._font)
+        self._bold_font = self._make_font(bold=True)
+        self._italic_font = self._make_font(italic=True)
+        self._bold_italic_font = self._make_font(bold=True, italic=True)
+        self._fallback_font = self._make_font(family=self._fallback)
+        self._fallback_bold = self._make_font(bold=True, family=self._fallback)
+        self._fallback_italic = self._make_font(italic=True, family=self._fallback)
+        self._fallback_bold_italic = self._make_font(bold=True, italic=True,
+                                                     family=self._fallback)
+
         self._update_grid()
         # The viewport is unchanged, so setViewport() won't re-enter: tell QML
         # the grid changed or the pane keeps rendering the old column count.
@@ -634,8 +888,7 @@ class TerminalModel(QObject):
         selection = self._selection_range()
 
         for y, row in enumerate(rows):
-            self._paint_row(painter, row, y, selection)
-
+            self._paint_row(painter, row, y, selection, self._row_marks(y))
         if offset == 0 and not self._screen.cursor.hidden and self._cursor_on:
             self._paint_cursor(painter, rows)
         painter.end()
@@ -645,42 +898,105 @@ class TerminalModel(QObject):
         self._revision += 1
         self.sourceChanged.emit()
 
-    def _paint_row(self, painter: QPainter, row: list, y: int, selection) -> None:
+    def _paint_row(self, painter: QPainter, row: list, y: int, selection,
+                   marks: dict[int, int] | None = None) -> None:
         cell_w, cell_h = self._cell_w, self._cell_h
         top = 2 + y * cell_h
         x = 4.0
         run_text: list[str] = []
         run_cells: list = []
+        run_spans: list[int] = []
+        run_selected: list[bool] = []
+        run_mark: list[int] = []
+        run_fb: list[bool] = []
 
         def flush():
-            nonlocal x, run_text, run_cells
+            nonlocal x, run_text, run_cells, run_spans, run_selected, run_mark, run_fb
             if not run_cells:
                 return
-            text = "".join(run_text)
             attr = run_cells[0]
             fg = self._fg_for(attr)
             bg = self._bg_for(attr)
-            width = cell_w * len(text)
+            width = cell_w * sum(run_spans)
+            rect = QRectF(x, top, width, cell_h)
             if bg is not None:
-                painter.fillRect(QRectF(x, top, width, cell_h), bg)
-            if text.strip():
-                painter.setFont(self._font_for(attr))
-                painter.setPen(fg)
-                painter.drawText(QRectF(x, top, width, cell_h),
-                                 int(Qt.AlignLeft | Qt.AlignVCenter), text)
-                self._decorate(painter, attr, x, top, width, fg)
+                painter.fillRect(rect, bg)
+            # The selection is an overlay, not a colour swap: reversing the
+            # cell would hide its own background and produce different results
+            # for every program. The themed alpha colour keeps the text
+            # readable and matches the accent chosen in Settings.
+            if run_selected[0]:
+                painter.fillRect(rect, self._selection_color)
+            if run_mark[0]:
+                painter.fillRect(rect, self._search_color
+                                 if run_mark[0] == 2 else self._search_dim_color)
+            font = self._font_for(attr)
+            painter.setFont(font)
+            painter.setPen(fg)
+            # One draw call per run is several times cheaper than one per
+            # glyph, and ASCII runs are what a frame is made of. It is only
+            # valid when the whole run is one width and one font: a wide
+            # glyph, or any glyph the primary lacks, needs its own placement.
+            if all(span == 1 for span in run_spans) and not any(run_fb):
+                # A run only gets here when every glyph is the primary
+                # font's, so one font is right for all of them.
+                painter.drawText(rect, int(Qt.AlignLeft | Qt.AlignVCenter),
+                                 "".join(run_text))
+            else:
+                cursor_x = x
+                for text, span in zip(run_text, run_spans):
+                    if not text.strip():
+                        cursor_x += cell_w * span
+                        continue
+                    glyph_font = self._font_for(attr, text)
+                    painter.setFont(glyph_font)
+                    metrics = QFontMetricsF(glyph_font)
+                    if span == 1:
+                        painter.drawText(QRectF(cursor_x, top, cell_w, cell_h),
+                                         int(Qt.AlignLeft | Qt.AlignVCenter), text)
+                    else:
+                        # A wide glyph occupies two columns, but the font's own
+                        # advance is usually narrower than 2 * cell_w. Centre it
+                        # in its two-cell box so the next glyph does not creep
+                        # left; drawing each glyph keeps every column on the
+                        # grid instead of letting the run accumulate drift.
+                        advance = metrics.horizontalAdvance(text)
+                        baseline = top + (cell_h + metrics.ascent()
+                                          - metrics.descent()) / 2
+                        painter.drawText(
+                            QPointF(cursor_x + (cell_w * span - advance) / 2,
+                                    baseline), text)
+                    cursor_x += cell_w * span
+                painter.setFont(font)
+            self._decorate(painter, attr, x, top, width, fg)
             x += width
             run_text = []
             run_cells = []
+            run_spans = []
+            run_selected = []
+            run_mark = []
+            run_fb = []
 
         for col, cell in enumerate(row):
-            style = cell
-            if selection is not None and _inside(selection, y, col):
-                style = cell._replace(reverse=not cell.reverse)
-            if run_cells and not _same_style(run_cells[-1], style):
+            span = _cell_span(cell)
+            if span == 0:
+                # The stub cell of a wide glyph: its columns were already
+                # counted with the glyph, so it must not advance the grid.
+                continue
+            selected = selection is not None and _inside(selection, y, col)
+            mark = (marks or {}).get(col, 0)
+            fallback = self._needs_fallback(cell.data)
+            if run_cells and (not _same_style(run_cells[-1], cell)
+                              or run_selected[-1] != selected
+                              or run_mark[-1] != mark
+                              or run_fb[-1] != fallback):
                 flush()
             run_text.append(cell.data)
-            run_cells.append(style)
+            run_cells.append(cell)
+            run_spans.append(span)
+            run_selected.append(selected)
+            run_mark.append(mark)
+            run_fb.append(fallback)
         flush()
 
     def _paint_cursor(self, painter: QPainter, rows: list) -> None:
@@ -688,13 +1004,14 @@ class TerminalModel(QObject):
         if cy >= len(rows) or cx >= len(rows[cy]):
             return
         attr = rows[cy][cx]
+        span = _cell_span(attr) or 1
         rect = QRectF(4 + cx * self._cell_w, 2 + cy * self._cell_h,
-                      self._cell_w, self._cell_h)
+                      self._cell_w * span, self._cell_h)
         painter.fillRect(rect, self._fg if attr.reverse else self._cursor_color)
         if attr.data.strip():
-            painter.setFont(self._font_for(attr))
+            painter.setFont(self._font_for(attr, attr.data))
             painter.setPen(self._bg if attr.reverse else self._bg_for(attr) or self._bg)
-            painter.drawText(rect, int(Qt.AlignLeft | Qt.AlignVCenter), attr.data)
+            painter.drawText(rect, int(Qt.AlignHCenter | Qt.AlignVCenter), attr.data)
 
     def _decorate(self, painter: QPainter, attr, x: float, top: float,
                   width: float, fg: QColor) -> None:
@@ -708,12 +1025,22 @@ class TerminalModel(QObject):
             painter.drawLine(int(x), int(top + self._cell_h / 2),
                              int(x + width), int(top + self._cell_h / 2))
 
-    def _font_for(self, attr) -> QFont:
-        if attr.bold and attr.italics:
+    def _font_for(self, attr, text: str = "") -> QFont:
+        bold = bool(attr.bold)
+        italic = bool(attr.italics)
+        if text and self._needs_fallback(text):
+            if bold and italic:
+                return self._fallback_bold_italic
+            if bold:
+                return self._fallback_bold
+            if italic:
+                return self._fallback_italic
+            return self._fallback_font
+        if bold and italic:
             return self._bold_italic_font
-        if attr.bold:
+        if bold:
             return self._bold_font
-        if attr.italics:
+        if italic:
             return self._italic_font
         return self._font
 
@@ -770,6 +1097,39 @@ def _same_style(a, b) -> bool:
     return (a.fg == b.fg and a.bg == b.bg and a.bold == b.bold
             and a.italics == b.italics and a.underscore == b.underscore
             and a.strikethrough == b.strikethrough and a.reverse == b.reverse)
+
+
+def _cell_span(cell) -> int:
+    """Columns a cell occupies: 2 for a wide glyph, 0 for its stub.
+
+    pyte writes a full-width character into one cell and leaves the cell after
+    it with empty data. Treating that empty cell as one column is what made
+    CJK text drift left against the grid.
+    """
+    data = cell.data
+    if not data:
+        return 0
+    return 2 if wcswidth(data) == 2 else 1
+
+
+def _row_text(row) -> tuple[str, list[int], list[int]]:
+    """(text, column of each character, columns each character occupies).
+
+    A search match is found in the text, but the highlight is painted by
+    column. With wide characters those two indices differ, so the mapping has
+    to be carried alongside the text.
+    """
+    chars: list[str] = []
+    columns: list[int] = []
+    spans: list[int] = []
+    for col, cell in enumerate(row):
+        if not cell.data:
+            continue
+        for ch in cell.data:
+            chars.append(ch)
+            columns.append(col)
+            spans.append(2 if wcswidth(ch) == 2 else 1)
+    return "".join(chars), columns, spans
 
 
 def _inside(rng, y: int, x: int) -> bool:

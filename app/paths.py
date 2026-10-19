@@ -86,6 +86,14 @@ def state_file() -> Path:
     return state_dir() / "state.json"
 
 
+def log_dir() -> Path:
+    """Where session logs are written when logging is enabled."""
+    override = os.environ.get("LITSSHP_LOGS")
+    if override:
+        return Path(os.path.expanduser(override))
+    return state_dir() / "logs"
+
+
 def find_tssh() -> str | None:
     """Locate the tssh executable, preferring a user-local install."""
     override = os.environ.get("LITSSHP_TSSH")

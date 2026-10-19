@@ -43,6 +43,8 @@ Item {
             fieldJump.text = ""
             fieldCommand.text = ""
             fieldPassword.text = ""
+            fieldStartup.text = ""
+            passwordSource = ""
             passwordHint = ""
             rawArea.text = ""
             ownForwards = []
@@ -60,7 +62,9 @@ Item {
         fieldJump.text = h.proxyJump || ""
         fieldCommand.text = h.proxyCommand || ""
         fieldPassword.text = App.hostPassword(originalAlias)
-        passwordHint = h.hasPassword ? "Password stored (tssh encPassword)" : ""
+        fieldStartup.text = h.startupCommand || ""
+        passwordSource = h.passwordSource || ""
+        passwordHint = passwordHintFor(h)
         rawArea.text = App.hostRawBlock(originalAlias)
 
         var forwards = App.hostForwards(originalAlias)
@@ -72,6 +76,17 @@ Item {
     }
 
     property string passwordHint: ""
+    // How the stored password is written (encrypted | plain | command | "").
+    // Saving keeps the same form: converting on every save would rewrite the
+    // file, and a PasswordCommand has no plain value to round-trip.
+    property string passwordSource: ""
+
+    function passwordHintFor(h) {
+        if (!h || !h.hasPassword) return ""
+        if (h.passwordSource === "plain") return "Stored as plain #!! Password"
+        if (h.passwordSource === "command") return "Password comes from #!! PasswordCommand"
+        return "Password stored (tssh encPassword)"
+    }
 
     // Forwarding rules, split by where they came from: `own` is what this
     // form writes back, `inherited` is shown read-only because it belongs to
@@ -312,10 +327,25 @@ Item {
                             Layout.fillWidth: true
                             Layout.minimumWidth: 0
                             label: "Password"
-                            placeholderText: "stored as tssh encPassword"
+                            placeholderText: root.passwordSource === "plain"
+                                             ? "stored as plain #!! Password"
+                                             : "stored as tssh encPassword"
                             supportingText: root.passwordHint
                             leadingIcon: "password"
                             isPassword: true
+                            readOnly: root.passwordSource === "command"
+                            type: "outlined"
+                            labelBackgroundColor: Theme.color.surfaceContainerLow
+                        }
+
+                        TextField {
+                            id: fieldStartup
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            label: "Startup command"
+                            placeholderText: "optional, run after login"
+                            supportingText: "LItsshP #!! StartupCommand — typed once the shell is ready"
+                            leadingIcon: "play_arrow"
                             type: "outlined"
                             labelBackgroundColor: Theme.color.surfaceContainerLow
                         }
@@ -811,12 +841,15 @@ Item {
             "groups": fieldGroups.text.trim(),
             "proxyJump": fieldJump.text.trim(),
             "proxyCommand": fieldCommand.text.trim(),
+            // Always sent so clearing the field removes the option.
+            "startup_command": fieldStartup.text.trim(),
             "forwards": root.ownForwards.filter(function (r) {
                 return String(r.spec || "").trim() !== ""
             })
         }
         if (root.isNew || fieldPassword.text !== App.hostPassword(root.originalAlias)) {
             fields.password = fieldPassword.text
+            fields.password_source = root.passwordSource
         }
         if (!fields.alias) {
             root.statusError = "Alias is required"

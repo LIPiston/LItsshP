@@ -38,6 +38,11 @@ Item {
         else root.window.openSettings()
     }
 
+    function openSearch() {
+        var pane = root.activeTerminal()
+        if (pane) pane.openSearch()
+    }
+
     // ── Empty state ────────────────────────────────────────────────────
     ColumnLayout {
         anchors.centerIn: parent
@@ -99,6 +104,18 @@ Item {
                 type: "tonal"
                 visible: App.hosts.length > 0
                 onClicked: root.window.openPalette()
+            }
+            // Restoring is explicit: opening several SSH connections on start
+            // is not something a GUI should do unasked.
+            Button {
+                text: "Reopen last session"
+                icon: "history"
+                type: "text"
+                visible: App.canRestore
+                onClicked: {
+                    var res = App.restoreLayout()
+                    if (!res.ok) App.toast(res.error || "Nothing to restore")
+                }
             }
         }
 
@@ -394,6 +411,8 @@ Item {
     }
 
     // ── Terminal stack ─────────────────────────────────────────────────
+    // With a split, two panes share the area side by side. Both are ordinary
+    // TerminalPane instances; the split only changes which are visible.
     Item {
         id: terminalArea
         anchors.left: parent.left
@@ -402,6 +421,9 @@ Item {
         anchors.bottom: composer.visible ? composer.top : statusBar.top
         clip: true
 
+        readonly property bool split: App.splitActive
+        readonly property int splitAt: App.splitIndex
+
         Repeater {
             id: paneRepeater
             model: App.tabs
@@ -409,12 +431,180 @@ Item {
             delegate: TerminalPane {
                 required property var modelData
                 required property int index
-                anchors.fill: parent
                 visible: index === App.activeIndex
+                         || (terminalArea.split && index === terminalArea.splitAt)
+                // The split bar sits above both panes, so they start below it
+                // when it is visible.
+                y: terminalArea.split ? splitBar.height : 0
+                // The active pane leads; the split takes the right half.
+                x: !terminalArea.split ? 0
+                   : (index === App.activeIndex ? 0 : terminalArea.width / 2 + 1)
+                width: !terminalArea.split ? terminalArea.width
+                     : Math.max(120, terminalArea.width / 2 - 1)
+                height: terminalArea.height - y
                 sessionIndex: index
                 focused: index === App.activeIndex && root.window.active
                 window: root.window
                 onRequestReconnect: App.reconnectTab(index)
+            }
+        }
+
+        // Divider between the two panes, with a click target for swapping
+        // which side leads (the small chevrons).
+        Rectangle {
+            visible: terminalArea.split
+            x: Math.round(terminalArea.width / 2) - 1
+            width: 2
+            height: parent.height
+            color: Theme.color.outlineVariant
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 18
+                height: 54
+                radius: 9
+                color: Theme.color.surfaceContainerHigh
+                border.width: 1
+                border.color: Theme.color.outlineVariant
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "swap_horiz"
+                    font.family: Theme.iconFont.name
+                    font.pixelSize: 14
+                    color: swapHover.containsMouse ? Theme.color.primary
+                                                   : Theme.color.onSurfaceVariantColor
+                }
+                MouseArea {
+                    id: swapHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: App.swapSplit(0)
+                }
+            }
+        }
+    }
+
+    // ── Split toolbar ──────────────────────────────────────────────────
+    // Appears only while a split exists: it names the two panes and carries
+    // the broadcast toggle, which is the reason to split in the first place.
+    Rectangle {
+        id: splitBar
+        visible: terminalArea.split
+        anchors.left: terminalArea.left
+        anchors.right: terminalArea.right
+        anchors.top: terminalArea.top
+        height: 30
+        z: 5
+        color: Theme.color.surfaceContainerHigh
+
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 1
+            color: root.hairline
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 8
+            spacing: 10
+
+            Text {
+                text: "vertical_split"
+                font.family: Theme.iconFont.name
+                font.pixelSize: 14
+                color: Theme.color.onSurfaceVariantColor
+            }
+            Text {
+                text: App.tabs[App.activeIndex] ? App.tabs[App.activeIndex].host : ""
+                font.family: Theme.typography.labelMedium.family
+                font.pixelSize: 11
+                color: Theme.color.onSurfaceColor
+            }
+            Text {
+                text: "│"
+                font.pixelSize: 11
+                color: Theme.color.outline
+            }
+            Text {
+                text: App.tabs[App.splitIndex] ? App.tabs[App.splitIndex].host : ""
+                font.family: Theme.typography.labelMedium.family
+                font.pixelSize: 11
+                color: Theme.color.onSurfaceColor
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Rectangle {
+                Layout.preferredWidth: broadcastRow.width + 16
+                Layout.preferredHeight: 22
+                radius: 11
+                color: App.settings.broadcastInput === true
+                       ? Theme.color.primaryContainer : "transparent"
+                border.width: 1
+                border.color: App.settings.broadcastInput === true
+                              ? "transparent" : root.hairline
+
+                Row {
+                    id: broadcastRow
+                    anchors.centerIn: parent
+                    spacing: 5
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "campaign"
+                        font.family: Theme.iconFont.name
+                        font.pixelSize: 13
+                        color: App.settings.broadcastInput === true
+                               ? Theme.color.onPrimaryContainerColor
+                               : Theme.color.onSurfaceVariantColor
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Broadcast"
+                        font.family: Theme.typography.labelSmall.family
+                        font.pixelSize: 10
+                        color: App.settings.broadcastInput === true
+                               ? Theme.color.onPrimaryContainerColor
+                               : Theme.color.onSurfaceVariantColor
+                    }
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: App.setSetting("broadcastInput",
+                                             !(App.settings.broadcastInput === true))
+                }
+            }
+
+            Text {
+                visible: App.settings.broadcastInput === true
+                text: "open composer to send to both"
+                font.family: Theme.typography.labelSmall.family
+                font.pixelSize: 9
+                color: Theme.color.onSurfaceVariantColor
+            }
+
+            Item {
+                Layout.preferredWidth: 22
+                Layout.preferredHeight: 22
+                Text {
+                    anchors.centerIn: parent
+                    text: "close"
+                    font.family: Theme.iconFont.name
+                    font.pixelSize: 14
+                    color: splitCloseHover.containsMouse ? Theme.color.onSurfaceColor
+                                                         : Theme.color.onSurfaceVariantColor
+                }
+                MouseArea {
+                    id: splitCloseHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: App.closeSplit()
+                }
             }
         }
     }
@@ -429,6 +619,7 @@ Item {
         // Notifying property: App.terminalModel() is a slot with no change
         // signal, so binding to it would never re-run on tab changes.
         model: App.activeModel
+        broadcast: terminalArea.split && App.settings.broadcastInput === true
         onEscapePressed: {
             var pane = root.activeTerminal()
             if (pane) pane.takeFocus()
@@ -492,6 +683,26 @@ Item {
                 }
             }
 
+            // Split controls live in the status bar so they are reachable
+            // without a menu: opening a split is otherwise a right-click
+            // discovery problem.
+            Text {
+                visible: App.hasTabs && App.tabs.length > 1
+                text: App.splitActive ? "Unsplit" : "Split"
+                font.family: Theme.typography.labelSmall.family
+                font.pixelSize: 10
+                color: Theme.color.primary
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (App.splitActive) App.closeSplit()
+                        else root.window.openSplitPicker()
+                    }
+                }
+            }
+
             Text {
                 text: App.configPath()
                 font.family: Theme.typography.labelSmall.family
@@ -507,6 +718,7 @@ Item {
         model: [
             { text: "Reconnect", icon: "refresh", action: function() { App.reconnectTab(App.activeIndex) } },
             { text: "Duplicate session", icon: "content_copy", action: function() { App.duplicateTab(App.activeIndex) } },
+            { text: "Split with…", icon: "vertical_split", action: function() { root.window.openSplitPicker() } },
             { type: "separator" },
             { text: "Close tab", icon: "close", action: function() { root.window.requestCloseTab(App.activeIndex) } },
             { text: "Close other tabs", icon: "clear_all", action: function() { App.closeOtherTabs(App.activeIndex) } }
