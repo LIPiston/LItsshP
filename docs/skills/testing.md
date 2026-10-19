@@ -11,22 +11,30 @@ about how to run them, when to add one, and how to report results honestly.
 | compile | `.venv/Scripts/python -m compileall -q app` | Python parses | < 2 s |
 | QML load | `.venv/Scripts/python docs/skills/reference/qml_load_gate.py` | the whole QML tree loads with no binding errors | ~3 s |
 | config | `.venv/Scripts/python docs/skills/reference/config_roundtrip_gate.py` | the writer preserves unrelated text; secrets round-trip | < 2 s |
+| forwarding | `.venv/Scripts/python docs/skills/reference/forward_roundtrip_gate.py` | accumulating forwards round-trip and stay host-scoped | < 2 s |
+| session features | `.venv/Scripts/python docs/skills/reference/session_features_gate.py` | password form is preserved; search, log and layout behave | ~3 s |
 
-All three are safe at any time: the QML gate uses an offscreen platform and
-temp config/state paths, and the config gate writes only to a temp directory.
+All five are safe at any time: the QML gate uses an offscreen platform and
+temp config/state paths, and the others write only to a temp directory. None of
+them touches the real `~/.ssh` — keep it that way (invariant 12).
 
-Run all three before and after any change. "It looks right" is not a result;
+Run all five before and after any change. "It looks right" is not a result;
 paste the actual output.
 
 ## Manual passes
 
-Two manual passes exist, both described step by step in
+Three manual passes exist, all described step by step in
 [reference/verification](reference/verification.md):
 
-- **Gate 4 — session smoke**: connect, type, copy/paste, composer, scrollback,
-  full-screen mouse handoff.
+- **Gate 4/4b — session smoke**: connect, type, copy/paste, composer,
+  scrollback, full-screen mouse handoff; then search, session log,
+  auto-reconnect, keep-alive, split/broadcast, snippets/startup and layout
+  restore.
 - **Gate 5 — transfer smoke**: upload, download, route labels, popover,
   permission fallback, cancel.
+- **Gate 7 — key management**: fingerprints against `ssh-keygen -lf`, key
+  creation, install-on-host, known-host removal. This one edits the real
+  `~/.ssh`, so only run it where that is acceptable.
 
 They need a reachable SSH host. `sshd` is running on this machine, so a
 `localtest` block on `127.0.0.1` is enough.
@@ -39,14 +47,20 @@ the cheapest useful shape is what the gates already do: a script under
 
 Guidelines for a new gate:
 
-1. **Never touch real state.** Set `LITSSHP_CONFIG` / `LITSSHP_STATE` to a
-   `tempfile.mkdtemp()` path before importing `app`.
+1. **Never touch real state.** Set `LITSSHP_CONFIG` / `LITSSHP_STATE` /
+   `LITSSHP_LOGS` to a `tempfile.mkdtemp()` path before importing `app`. Those
+   cover the config, the state file and logs; they do **not** redirect
+   `~/.ssh`, so pass an explicit folder to anything in `app/keys.py`.
 2. **Test a guarantee, not an implementation detail.** Name the invariant it
    protects (see [Invariants](reference/invariants.md)) in the docstring.
 3. **Print one line per check**, `PASS name` / `FAIL name`, then a one-line
    summary and an exit code. The existing gates are the template.
 4. **Fail loudly on an exception.** A traceback exiting non-zero is fine; a
    swallowed exception is not.
+5. **Scope a text assertion to the thing under test.** Checking a whole config
+   file for the absence of `encPassword` fails whenever another host has one,
+   and passes for the wrong reason in other cases. Extract the block (see
+   `block()` in `session_features_gate.py`) and assert on that.
 
 ### Testing QML behaviour from Python
 

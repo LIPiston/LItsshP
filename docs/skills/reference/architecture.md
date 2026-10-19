@@ -13,6 +13,7 @@ on the command line.
 QML (app/qml/)
   Main ─ HostSidebar ─ Workspace ─ TerminalPane
        ├ HostEditorSheet / SettingsSheet / TunnelSheet / CommandPalette
+       ├ KeyManagerSheet / SnippetSheet / split picker
        ├ TransferIndicator / TransferPopover
        └ TransferWindow (separate top-level window)
 
@@ -20,13 +21,14 @@ Python (app/)
   controller.py      QML-facing facade: hosts, tabs, settings, transfers, tunnels
   config.py          ~/.ssh/config parser + byte-preserving writer (+ Include)
   secret.py          tssh encPassword encode/decode
-  paths.py           home, config, state, tssh/sftp discovery
+  paths.py           home, config, state, logs, tssh/sftp discovery
   pty_session.py     tssh in a ConPTY, reader thread, GUI-side drain timer
   screen.py          pyte Screen subclass: scrollback, alt screen, mouse modes
-  terminal_model.py  grid → QImage, key/mouse translation, selection
+  terminal_model.py  grid → QImage, key/mouse translation, selection, search, log
   terminal_theme.py  terminal palette derived from the Material scheme
   sftp_client.py     SFTP listing (batch) and transfers (ConPTY + meter scraping)
   tunnel.py          forward specs + one supervised `tssh -N` per host
+  keys.py            key inventory, local fingerprints, ssh-keygen/keyscan wrappers
   style.py           Python ports of md3's StyleManager / ColorHelper
   main.py            entry point: singletons, image provider, window geometry
 
@@ -64,6 +66,132 @@ tssh -- ConPTY --(reader thread)--> deque --(QTimer 8 ms)--> Stream.feed
 - Input goes the other way through `handleKey` / `mousePress` / `mouseRelease`:
   key codes become VT sequences (or control bytes for Ctrl+letter), mouse
   events become xterm reports when the running program asked for them.
+
+### Search, log and scroll state in the renderer
+
+`TerminalModel` keeps three pieces of view state that are not part of pyte's
+screen:
+
+- **Search** stores hits in *absolute* row coordinates (scrollback rows
+  followed by live rows, via `Screen.all_rows()`), so a hit keeps pointing at
+  the same text while output is appended and the view scrolls. Fed output
+  re-runs the query only over the live screen; scrollback rows never change.
+  Highlights are painted per cell as a translucent overlay in `_paint_row`.
+- **Selection** is also an overlay: the themed transparent colour is filled
+  over the cell rectangle, and the text keeps its original foreground. It is
+  not reverse video — that would make the selection colour depend on the
+  cell's own colours.
+- **Log** output is a text copy of the byte stream with escape sequences
+  stripped and each `\r`-redrawn line reduced to its final revision. The file
+  handle is owned by the controller (`_open_log` / `_close_log`) and handed to
+  the model, which buffers and flushes it — every second, at 8 KB and on
+  detach, so the file tracks a live session instead of appearing only at close.
+
+Both search and log are fed from `feed()`, i.e. the same GUI-thread drain that
+drives rendering, so neither can see a half-fed chunk.
+
+### Cell grid, wide characters and the fallback font
+
+The grid is fixed by the primary font: `cell_w` is exactly
+`horizontalAdvance("W")` and `cell_h` is the font height. The advance is used
+without padding — a multiplier as small as `1.02` accumulates into visible
+rightward drift over a long line, and a second colour run then starts at the
+wrong place.
+
+pyte represents a full-width character (CJK, full-width punctuation) as one
+cell holding the character plus a **following stub cell with `data == ""`**;
+the cursor advances two columns. Painting therefore asks `_cell_span()`
+(`wcswidth`), skips a zero-width stub (it must not advance the grid again),
+and draws a wide glyph centred in its two-column box, because a font's own
+advance for `中` is usually narrower than `2 * cell_w`. Search works on the
+same mapping: `_row_text()` returns the characters together with the column
+and span of each one, so a hit is reported as `(row, column, column_span)`
+rather than as a character index.
+
+Font fallback is **per glyph and explicit**. `QFont.setFamilies([primary,
+fallback])` reads like a fallback chain but is only a *resolution* order: with
+`["Cascadia Mono", "Microsoft YaHei"]` Qt still drew `中` with the system CJK
+font, and swapping the second entry changed no pixel. `TerminalModel` instead
+keeps a `QRawFont` for the primary, asks `supportsCharacter()` per character
+(cached in `_glyph_cache`), and draws those characters with a separate `QFont`
+built from the `fontFallback` setting — one per regular/bold/italic/bold-italic
+face. The cell width never comes from the fallback, so the grid stays stable
+when the fallback changes.
+
+The fast path is preserved: a run is drawn with a single `drawText` call only
+when every glyph is one column wide and none needs the fallback. A run is
+split at any style, selection, search-mark or fallback boundary, and only then
+drawn glyph by glyph (roughly 35 ms instead of 4.5 ms per 124×40 frame, which
+is why the split is conditional).
+
+
+## Session lifecycle
+
+A `Session` is a tab: PTY process, model, and the state the controller keeps
+about it (attempt count, pending commands, log handle).
+
+```
+openHost ──► tssh <alias> ──► PtySession.started ──► state = connected
+                                      │                    │
+                                      │                    ├─ _send_startup: pending
+                                      │                    │  commands, then #!! StartupCommand
+                                      └─ PtySession.exited ──► state = closed
+                                                    │
+                                     exit 205/255 and autoReconnect?
+                                                    │
+                                            backoff 1,2,4,8,16,30 s
+                                                    │
+                                              _reconnect (max 5)
+```
+
+`_cancel_reconnect` is called by `closeTab` and a deliberate `reconnectActive`,
+and it sets `suppress_reconnect`; that flag is what keeps `_on_exit` from
+scheduling a restart of a session the user ended.
+
+The split is one extra integer, `_split`, an index into `_tabs`. `Workspace.qml`
+lays out two `TerminalPane` instances when `splitActive` is true; everything
+else (tabs, composer, broadcast, logging, tunnels) treats them as ordinary
+tabs. `closeTab` clears or decrements `_split` so it can never point at a
+stale index.
+
+## Key management
+
+`app/keys.py` is a thin wrapper over the OpenSSH toolchain, with one piece of
+real logic: fingerprints are computed locally — `SHA256:` + base64 of the
+SHA-256 of the base64-decoded public blob — instead of parsing
+`ssh-keygen -lf`. That keeps listing working for passphrase-protected keys and
+on machines where `ssh-keygen` is missing, and it produces the same string the
+tool prints.
+
+```
+~/.ssh/*.pub ──► _public_parts ──► _blob_fingerprint ──► KeyManagerSheet rows
+IdentityFile paths ──► list_keys (referencedBy)
+ssh-keygen -t/-b/-N ──► generate_key (refuses to overwrite, chmod 600)
+known_hosts ──► known_hosts_entries (hashed |1| rows included)
+ssh-keyscan ──► scan_host ──► trust_host (dedup append)
+ssh-keygen -R ──► remove_known_hosts
+```
+
+Installing a public key is deliberately *not* an SFTP write: `pushKey` builds
+an idempotent shell line (`grep -qxF` guard, `mkdir -p`, `chmod`) and types it
+into the host's session, so it works on a first login where only a password is
+available.
+
+## Layout persistence
+
+`_current_layout()` reduces the open tabs to `{tabs: [alias...], active, split}`.
+It is written into `state.json` under `layout`, next to the settings, so
+nothing about a host is duplicated there — only which aliases were open.
+
+The save is conditional in one direction: it only overwrites the stored layout
+while at least one tab is open. Otherwise the first `setSetting` call after
+launch (a font change, say) would erase the layout before the user pressed
+**Reopen last session**. `shutdown()` therefore saves *before* stopping and
+clearing the tabs.
+
+`restoreLayout()` re-checks every alias against the config and skips ones that
+no longer exist, then re-applies the active index and the split if they are
+still in range.
 
 ## Host data path
 

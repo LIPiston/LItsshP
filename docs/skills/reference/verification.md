@@ -60,6 +60,67 @@ the spec parser's accept/reject cases.
 
 Expected output ends with `PASS forward round-trip gate` and exit 0.
 
+## Gate 3d — session features (password form, search, log, layout)
+
+```bash
+.venv/Scripts/python docs/skills/reference/session_features_gate.py
+```
+
+One script, four groups of checks:
+
+- **password form** — a plain `#!! Password` stays plain and keeps its value;
+  saving it as `encrypted` produces `encPassword` and removes the plain line;
+  clearing removes `encPassword`/`encQuestionAnswer1` but keeps a
+  `PasswordCommand`. Assertions are scoped to the host's own block, so another
+  host's bytes cannot make a check pass.
+- **search** — every hit in scrollback plus the live screen is found, the
+  newest is selected, next/previous wrap, the default is case-insensitive and
+  the case-sensitive option narrows it.
+- **render** — selecting paints the themed translucent colour over the cell
+  and clearing restores the plain background, proving the selection is an
+  overlay rather than a reverse-video swap; a search match changes the pixel
+  too.
+- **log** — a `\r`-redrawn progress line keeps its last revision, escape
+  sequences are gone, printable text survives, and the file is already
+  current before the session ends (a flush timer writes it every second;
+  without it the log stayed empty until close). (The `\r\n` line-ending case is
+  covered here: a PTY ends lines that way, and an early version dropped every
+  line because of it.)
+- **wide cells** — a full-width character reports a span of 2 and the cell
+  after it is a stub (span 0); `_row_text` maps `AB中文CD` to columns
+  `0,1,2,4,6,7` with spans `1,1,2,2,1,1`; the rendered glyphs land on the
+  column grid and nothing is painted past the last character; `selectedText`
+  rebuilds the wide characters; a search for `文C` is reported at column 4
+  with a span of 3, and `中文` covers four columns.
+- **fallback font** — the configured family is kept, one equal to the primary
+  is ignored, and (with a stub `QRawFont` that covers everything but CJK) only
+  a missing glyph takes the fallback path: `A` uses `_font`, `中` uses
+  `_fallback_font`, and a mixed row `AB中文CD` draws per glyph for `中`/`文`
+  only. With no fallback configured nothing is substituted. `fontFallback` has
+  a default that can render `中`, every family offered by `fallbackFonts()`
+  contains `中`, the default resolves to an installed family, and
+  `setSetting` persists the choice. A default family that is not installed
+  (simulated by patching `DEFAULT_SETTINGS`) is replaced by the first offered
+  family, or by `""` when nothing is installed.
+- **file names** — a host alias containing `/`, `*` and the like becomes a
+  usable log file name.
+- **layout** — a saved layout is written, a second controller sees it, and
+  `restoreLayout()` skips an alias that is not in the config.
+- **keys** — `ssh-keygen` creates an ed25519 key, a second generation is
+  refused, the listed fingerprint equals `ssh-keygen -lf` output, a named
+  known_hosts entry is removed while its neighbour survives, a row is removed
+  by line (the hashed case), and deleting a pair removes both halves. All of it
+  happens in the gate's temp `.ssh` folder, never the real one.
+
+Expected output ends with `PASS session features gate` and exit 0. It runs in
+a temp directory and never touches the real `~/.ssh`.
+
+On Windows this gate uses the native platform plugin rather than `offscreen`,
+because the offscreen plugin there loads no font database at all: every glyph
+becomes a tofu box drawn over the cell pixel probes read, so the selection and
+search-mark checks fail for a reason unrelated to the code. Nothing is shown
+either way — only a `QGuiApplication` and an offscreen `QImage` exist.
+
 ## Gate 3c — port-forward smoke (manual, local sshd)
 
 1. Add `LocalForward 18080 localhost:22` to a host whose `HostName` is
@@ -108,7 +169,53 @@ Then confirm, in this order:
    (invariant 7); `Ctrl+Enter` sends and the lines execute;
 6. `seq 1 400` produces scrollback; `Shift+PgUp` scrolls, `Ctrl+End` returns;
 7. a full-screen program (`vim`, `htop`) renders, and `Shift`-drag selects
-   text while the program is tracking the mouse.
+   text while the program is tracking the mouse;
+8. `Ctrl+F`, type a string that appears several times in both scrollback and
+   the live screen: every hit is highlighted, the count is right, Enter and
+   Shift+Enter wrap, the `Aa` toggle narrows an all-lowercase query, and
+   Escape closes the bar;
+9. drag a selection across normal, bold and reverse-video text: the highlight
+   keeps the themed colour and the glyphs stay readable (invariant 13).
+
+## Gate 4b — manual session features
+
+Same host as Gate 4. Each of these is UI behaviour a gate cannot reach:
+
+1. **Session log**: enable it in Settings, run `printf 'a\nb\n'`, open the log
+   folder, and confirm the file has one line per output line with no escape
+   sequences and no duplicated `\r\n` blanks.
+2. **Auto-reconnect**: connect, then kill the remote side (`pkill -f
+   'sshd: <you>'` on the loopback host) and watch the toast and the retry
+   timing. Then exit a shell normally with `exit` and confirm it stays closed.
+3. **Keep-alive**: with a host that sets `ServerAliveInterval 0`, set 30 s in
+   Settings and confirm the session's command line still has no `-o
+   ServerAliveInterval` (the host's explicit value wins). On a host that does
+   not set it, `-o ServerAliveInterval=30` must appear.
+4. **Split**: `Ctrl+Shift+D`, pick another tab, both panes render and accept
+   input; **Broadcast** with the composer puts the line in both; **Unsplit**
+   leaves both tabs alive; closing one pane leaves the other usable.
+5. **Snippets**: create one with two lines, choose it from the palette, and
+   confirm the commands appear at the prompt. Then edit an existing host and
+   give it a startup command: reopen it and confirm the command is typed once
+   after the shell is ready, not before the login prompt.
+6. **Layout restore**: open two tabs and a split, quit, relaunch, and press
+   **Reopen last session** on the empty state. Then delete one of the two hosts
+   from a scratch config and confirm the restore skips it instead of opening a
+   failing tab.
+7. **Chinese and the fallback font**: with a primary font that has no CJK
+   (`Cascadia Mono`, `Consolas`), run
+   `printf 'A中文B\n'` and `printf 'あア한\n'`. Set **Fallback for missing
+   glyphs** to `Microsoft YaHei`, then to `KaiTi` / `SimSun`: the Chinese
+   glyph *shapes* must change while the ASCII stays identical, and the ASCII
+   after each wide glyph must stay on its column (columns 0, 1, 4). Set the
+   fallback to **None** and confirm the characters still appear (the system
+   fallback takes over) but are no longer the chosen family. Run `htop` or a
+   tool that draws Chinese in a table and confirm the columns stay aligned.
+
+On a Windows build the gate runs the pixel checks on the native platform
+plugin; when only `offscreen` is available, expect the selection/search pixel
+checks to fail for lack of a font database and read the CJK geometry checks
+instead.
 
 ## Gate 5 — manual transfer smoke
 
@@ -146,11 +253,38 @@ Only ever after setting `LITSSHP_CONFIG` to a **copy**:
 4. Confirm the file still resolves the host with the client tssh delegates to:
    `ssh -F <copy> -G <alias>` (tssh itself has no `-G`).
 
+## Gate 7 — manual key management
+
+`app/keys.py` works on the real `~/.ssh`; there is no override. Run these on a
+machine (or a temporary `HOME`) whose keys you can afford to change, and read
+invariant 12 first.
+
+1. **Keys** in the sidebar lists `id_ed25519` and friends. Compare one row's
+   fingerprint with `ssh-keygen -lf ~/.ssh/id_ed25519.pub`; they must be
+   identical (`SHA256:…`).
+2. Create an ed25519 key with a passphrase and a comment. Confirm the file
+   appears with `-rw-------` permissions, that the fingerprint on the new row
+   matches `ssh-keygen -lf`, and that creating the same name again is refused
+   rather than overwriting.
+3. **Copy public** puts the `ssh-ed25519 …` line on the clipboard.
+4. **Install on host** against a loopback host: the session opens, the line is
+   appended to `~/.ssh/authorized_keys`, and running it twice does not add a
+   second copy.
+5. Known hosts: a hashed entry (`HashKnownHosts yes`) is listed as `(hashed)`.
+   **Forget** on it works because the row is deleted by line; on a named row
+   the whole host is removed. Either way the next connection asks to verify the
+   host key again.
+6. **Trust a host**: scan `127.0.0.1`, confirm the fingerprint matches
+   `ssh-keyscan -t ed25519 127.0.0.1 | ssh-keygen -lf -`, then **Trust** and
+   check the line appears once even after scanning twice.
+7. Delete a generated test key and confirm both halves are gone.
+
 ## What is not covered
 
-- No automated UI interaction tests. Behaviour of the composer, popover and
-  selection is verified by the manual passes above.
-- No automated transfer test. `sftp_client` is exercised by hand, because the
-  meter only exists under a real ConPTY.
-- No test touches the real `~/.ssh/config`; if you add one, it must copy the
-  file to a temp path first.
+- No automated UI interaction tests. Behaviour of the composer, popover,
+  split, search bar and selection is verified by the manual passes above.
+- No automated transfer or reconnect test. `sftp_client` and the drop/reconnect
+  path need a real process and a real ConPTY, so they are exercised by hand.
+- No gate touches the real `~/.ssh/config`; if you add one, it must copy the
+  file to a temp path first. The same rule applies to `~/.ssh` itself — see
+  invariant 12.

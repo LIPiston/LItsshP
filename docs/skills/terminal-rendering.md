@@ -76,7 +76,36 @@ re-parse. `terminal_theme.py` builds that palette from the Material scheme
 | local scroll | `TerminalPane.Keys.onPressed` | `Shift+PgUp/PgDn`, `Shift+↑/↓` scroll the view; bare PgUp/PgDn must reach the app |
 | mouse | `mousePress/Move/Release/wheel` | forwarded when the app tracks the mouse; `Shift` always means local selection |
 | selection | same file | drag selection, double-click word selection, copy-on-select |
+| search | same file | `setSearch` / `nextMatch`; hits are stored in absolute row coordinates and painted as overlays |
 | paste | `pasteClipboard` | wraps in `ESC[200~ … ESC[201~` when the app enabled bracketed paste |
+
+## Selection and search are overlays
+
+`_paint_row` walks runs of equally styled cells and fills a translucent
+rectangle over a selected or matched run before drawing its text. The cell's
+own foreground and background are untouched.
+
+The tempting alternative — flipping `reverse` for selected cells — is wrong
+here: the resulting colour depends on what the program printed, so a selection
+over output with its own background looks different from one over plain text,
+and the painted runs fragment every time attributes change. The run break
+therefore also watches the selection and match state:
+
+```python
+if run_selected[0]:
+    painter.fillRect(rect, self._selection_color)
+if run_mark[0]:
+    painter.fillRect(rect, self._search_color if run_mark[0] == 2
+                     else self._search_dim_color)
+```
+
+`_search_color` marks the current hit, `_search_dim_color` every other one.
+Both are `QColor` values with alpha, set by `applyTheme`.
+
+Search positions are absolute rows (`history` before the live screen,
+`Screen.all_rows()`), not viewport rows: appended output and scrolling then
+leave every hit attached to its text. `feed()` re-runs the query over the live
+screen only, since scrollback rows never change.
 
 `_send()` scrolls back to the live view before writing, because typed input
 that goes to a scrolled-back view is invisible.
@@ -87,6 +116,12 @@ that goes to a scrolled-back view is invisible.
 **not** as a bracketed paste. The composer's purpose is to queue work; a
 bracketed paste would sit at the prompt until Enter. If you change this, the
 composer's Enter/Ctrl+Enter semantics must change with it.
+
+With a split on screen and **Broadcast** enabled, the composer calls
+`App.broadcast(text)` instead, which runs `runCommand` on the active tab and
+the split tab. It deliberately does not go through the terminal model of each
+pane from QML: `App` owns the index arithmetic and can deduplicate when the
+two panes are the same tab.
 
 `TerminalPane` and `Workspace` are the only places that know which pane is
 active. `Workspace.activeTerminal()` is a *function* on purpose: a property

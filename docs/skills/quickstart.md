@@ -25,6 +25,8 @@ py -3 -m venv .venv
 .venv/Scripts/python -m compileall -q app
 .venv/Scripts/python docs/skills/reference/qml_load_gate.py
 .venv/Scripts/python docs/skills/reference/config_roundtrip_gate.py
+.venv/Scripts/python docs/skills/reference/forward_roundtrip_gate.py
+.venv/Scripts/python docs/skills/reference/session_features_gate.py
 ```
 
 (PowerShell and `cmd` accept `.venv\Scripts\python`; the blocks here use the
@@ -36,12 +38,15 @@ Expected: compileall silent, then
 ```
 PASS qml load gate
 PASS config round-trip gate
+PASS forward round-trip gate
+PASS session features gate
 ```
 
-Both gates run offscreen against a temp directory and are safe to run at any
-time. If either fails, fix that before touching anything else — they cover the
-two most common breakages (a renamed controller member, a config write that
-disturbs unrelated text).
+All four gates run offscreen against a temp directory and are safe to run at
+any time. If one fails, fix that before touching anything else — they cover
+the most common breakages (a renamed controller member, a config write that
+disturbs unrelated text, a changed password form, a broken search or layout
+save).
 
 ## 3. Run it
 

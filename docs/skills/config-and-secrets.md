@@ -66,12 +66,35 @@ also accepts. `hostPassword` exposes the decoded value so the editor can
 prefill it, and the editor compares it before writing (an unchanged field does
 not generate a new nonce).
 
+`_password_source` reports *how* it was stored (`encrypted`, `plain`,
+`command`, `answer`, or empty), because that is what decides how a save writes
+it back. `has_password` is true for a `PasswordCommand` as well, since such a
+host needs no typed secret.
+
 ## Writing passwords
 
 `update_host` writes both `#!! encPassword` and `#!! encQuestionAnswer1` with
 the same encoded value — that is what tssh does, so its question-answer flow
-keeps working. An empty `password` field removes `encPassword`,
-`encQuestionAnswer1` **and** a plain `Password`.
+keeps working.
+
+Which form is written depends on `fields["password_source"]`, which the editor
+received as `HostEntry.password_source`:
+
+| Source | Saving a value | Clearing the field |
+| --- | --- | --- |
+| `encrypted` (or empty) | `encPassword` + `encQuestionAnswer1`; the plain line is removed | both removed |
+| `plain` | `#!! Password` kept plain; `encPassword`/`encQuestionAnswer1` removed | plain line removed |
+| `command` | not written — there is no value to round-trip | `PasswordCommand` left untouched |
+| `answer` | treated as encrypted | both removed |
+
+Leaving `PasswordCommand` alone when the field is cleared is deliberate: the
+editor never showed that command, so emptying a field it could not fill must
+not delete a working login.
+
+`#!! StartupCommand <text>` is LItsshP's own option. tssh ignores it; the app
+types the text into the session once the shell reports ready. It is stored in
+the host's block, so it survives renames and is shared with the CLI's view of
+the file (though only LItsshP acts on it).
 
 `secret.py` is a byte-compatible port: AES-256-GCM, 12-byte random nonce,
 `hex(nonce || ciphertext || tag)`, constant key
@@ -98,11 +121,14 @@ README says so; do not describe it as secure anywhere.
 
 ```bash
 .venv/Scripts/python docs/skills/reference/config_roundtrip_gate.py
+.venv/Scripts/python docs/skills/reference/session_features_gate.py
 ```
 
-It covers BOM, CRLF, untouched-neighbour, edited-value, extension and
-`encPassword` behaviour. Any new guarantee should get a line there rather than
-being verified by eye.
+The first covers BOM, CRLF, untouched-neighbour, edited-value, extension and
+`encPassword` round-tripping. The second covers the password *form*: plain
+stays plain, encrypted stays encrypted, and clearing leaves `PasswordCommand`
+alone. Any new guarantee should get a line there rather than being verified by
+eye.
 
 For a manual check, always copy the config first:
 

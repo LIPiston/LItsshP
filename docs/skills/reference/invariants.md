@@ -134,3 +134,118 @@ when the app exits.
   spawned with `-o ClearAllForwardings=yes` so the two do not fight for them.
 - Checked by: `forward_roundtrip_gate.py` (rules and parser) and the manual
   port-forward smoke in [Verification](verification.md).
+
+## 11. The editor never silently converts the password form
+
+`#!! encPassword`, `#!! Password` and `#!! PasswordCommand` are three distinct
+stored forms, and tssh resolves them in that order. Saving a host keeps the
+form it found:
+
+- an encrypted password is written back encrypted (new nonce only when the
+  text actually changed);
+- a plain `#!! Password` stays plain — no `encPassword` is introduced;
+- clearing the field removes both forms the editor can show but leaves a
+  `PasswordCommand` alone, because the editor never displayed that command and
+  deleting it would break a working login.
+
+`HostEntry.password_source` (`encrypted` / `plain` / `command` / `answer` / ``)
+is what carries the decision from `config.py` to `HostEditorSheet.qml`; the
+sheet sends it back in `saveHost`. `has_password` is true for a
+`PasswordCommand` too, since a host that has one does not need a typed secret.
+
+- Enforced in: `ConfigStore._password_source` and `_write_password`.
+- Checked by: `session_features_gate.py` (plain stays plain, encrypted
+  converts, clearing keeps `PasswordCommand`).
+
+## 12. Tests never touch the real `~/.ssh`
+
+`LITSSHP_CONFIG` redirects the config, but nothing redirects `~/.ssh` itself:
+`keys.list_keys()`, `known_hosts_entries()`, `remove_known_hosts()` and
+`generate_key()` all default to `paths.ssh_dir()`. A gate that calls one of
+them without an override edits the developer's real keys.
+
+- Enforced in: every gate sets `LITSSHP_CONFIG`, `LITSSHP_STATE` and
+  `LITSSHP_LOGS` to a `tempfile.mkdtemp()` path before importing `app`;
+  `keys` functions accept an explicit `folder` / `path` for the rest.
+- Practical rule: when adding a check that touches keys or known hosts, pass a
+  temp path explicitly. There is no environment variable for `known_hosts`.
+- Symptom when broken: `~/.ssh/known_hosts.old` appears, or a real entry
+  disappears. If that happens, `shell.old` is the backup — restore it before
+  doing anything else.
+
+## 13. View state is painted as an overlay, not by inverting the cell
+
+Selection and search highlights are filled over the cell rectangle with a
+translucent themed colour in `_paint_row`; the glyph keeps its own colour.
+Reverse video is wrong here twice over: the visible colour would depend on
+what the program printed, and an inverted run has to break whenever cell
+attributes change, which fragments the painted runs.
+
+Runs therefore also break on `run_selected` / `run_mark` transitions, and both
+colours come from `applyTheme` (`selection` is `#AARRGGBB`).
+
+- Enforced in: `TerminalModel._paint_row` and `_render`.
+- Checked by: `session_features_gate.py` (a selected cell's pixel changes to
+  the themed colour and clearing restores it; a search match changes the
+  pixel), and by a manual drag-selection over normal, bold and reverse-video
+  text — the highlight must look the same and the text must stay readable.
+
+## 14. The UI never opens a session on its own at launch
+
+`state.json` records the last layout, but nothing is dialled until the user
+asks: **Reopen last session** in the empty state, the palette entry, or
+`Ctrl+Shift+O`. `restoreLayout()` is the only path that consumes `_saved_layout`,
+and it skips aliases that are no longer in the config.
+
+The saved layout is also guarded against being erased: `_save_state` only
+writes `layout` while `_tabs` is non-empty, and `shutdown()` saves before it
+stops and clears the tabs.
+
+- Enforced in: `AppController._save_state`, `shutdown`, `restoreLayout`.
+- Checked by: `session_features_gate.py` (a fresh state has no layout; a saved
+  one survives into a second controller; an unknown alias is skipped).
+
+## 15. One character may occupy two columns, and the grid never drifts
+
+The cell width is exactly `horizontalAdvance("W")` of the primary font, with
+no padding factor. A multiplier such as `1.02` looks harmless but accumulates:
+80 columns overshot by 15 px, and every run after the first started at the
+wrong place. Do not reintroduce one to "make text look roomier" — change the
+font size instead.
+
+A wide glyph (CJK, full-width punctuation) is one cell holding the character
+followed by a stub cell with `data == ""`; it spans **two** columns. Painting,
+selection text, the cursor block and search hits must all agree:
+
+- `_cell_span()` returns `wcswidth(data)`, so a stub is `0` and is skipped
+  before it advances the grid a second time;
+- a wide glyph is centred inside its two-column box, since the font's own
+  advance is narrower than `2 * cell_w`;
+- a search hit is `(row, column, column_span)`, mapped from character indexes
+  by `_row_text()`, not a character offset.
+
+- Enforced in: `TerminalModel._paint_row`, `_paint_cursor`, `_run_search`.
+- Checked by: `session_features_gate.py` (spans, column mapping, a `文C` hit
+  reported at columns 4–6, the glyphs landing on the grid) and by typing
+  Chinese into a real session: the following ASCII text must sit on its
+  columns.
+
+## 16. Fallback glyphs are chosen per character, never by `setFamilies`
+
+`QFont.setFamilies([primary, fallback])` is a *resolution* order, not a
+per-glyph fallback: with `["Cascadia Mono", "Microsoft YaHei"]` Qt still drew
+`中` with the system CJK font, and swapping the second family for `SimSun` or
+`KaiTi` changed no pixel. Reaching for it again will silently ignore the user's
+choice.
+
+`TerminalModel` therefore keeps a `QRawFont` for the primary, asks
+`supportsCharacter()` per character (cached in `_glyph_cache`), and paints a
+character the primary lacks with a `QFont` built from `fontFallback`. The cell
+width stays the primary font's, so the grid does not move when the fallback
+changes.
+
+- Enforced in: `TerminalModel._needs_fallback`, `_font_for`, `_paint_row`.
+- Checked by: `session_features_gate.py` (a stub raw font proves the decision
+  without depending on installed fonts; only `中`/`文` take the per-glyph path)
+  and by picking a fallback in Settings and watching the Chinese glyph shape
+  change in a live session.

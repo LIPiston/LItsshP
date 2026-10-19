@@ -25,6 +25,7 @@ LItsshP needs to read.
 | touch the terminal renderer | [Terminal rendering](skills/terminal-rendering.md) |
 | touch uploads/downloads | [File transfers](skills/file-transfers.md) |
 | touch `~/.ssh/config` handling | [Config and secrets](skills/config-and-secrets.md) |
+| touch keys, known hosts or the key sheet | [Config and secrets](skills/config-and-secrets.md), then [Invariants](skills/reference/invariants.md) §11–12 |
 | change README or these pages | [Updating documentation](skills/updating-docs.md) |
 
 Ground rule: these pages describe the repository as it is. When a page and

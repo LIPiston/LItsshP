@@ -17,15 +17,18 @@ never started.
 | Transfer stuck at 0% | meter scraping or ConPTY spawn | §7 |
 | App crashes shortly after start/close | QObject lifetime | §8 |
 
-Start every investigation by running the two gates:
+Start every investigation by running the gates:
 
 ```bash
 .venv/Scripts/python -m compileall -q app
 .venv/Scripts/python docs/skills/reference/qml_load_gate.py
+.venv/Scripts/python docs/skills/reference/session_features_gate.py
 ```
 
 A QML binding error is the single most common cause of "the UI is broken", and
-the gate prints it with a file and line number.
+the gate prints it with a file and line number. `session_features_gate.py`
+covers the renderer-adjacent state (search hits, log text, saved layout) that
+breaks without producing a QML warning.
 
 ## 1. Read the console
 

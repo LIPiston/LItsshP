@@ -7,6 +7,7 @@ scratch configuration can be used without touching the real one.
 | --- | --- | --- |
 | `LITSSHP_CONFIG` | path to the OpenSSH/tssh config file | `~/.ssh/config` |
 | `LITSSHP_STATE` | path to the UI state file (JSON) | `%APPDATA%\LItsshP\state.json` |
+| `LITSSHP_LOGS` | folder for session logs | `%APPDATA%\LItsshP\logs` |
 | `LITSSHP_TSSH` | path to the `tssh` executable | found on `PATH`, then WinGet links, `~/.local/bin`, `C:\Program Files\tssh` |
 | `LITSSHP_SFTP` | path to the `sftp` executable | found on `PATH`, then `%SystemRoot%\System32\OpenSSH\sftp.exe` |
 
@@ -14,12 +15,18 @@ When `LITSSHP_CONFIG` is set, both the session spawner and the SFTP client also
 pass `-F <that file>` to the binaries, so the child processes read the same
 configuration the GUI parsed.
 
+There is deliberately **no** override for `~/.ssh`: key management works on
+`paths.ssh_dir()` and therefore on the real keys and `known_hosts`. A gate that
+needs them must pass a temp folder to the `keys` functions explicitly.
+
 ## Files and locations
 
 | Path | Owner | Content |
 | --- | --- | --- |
 | `~/.ssh/config` (+ `Include`s) | tssh / OpenSSH | hosts, credentials, all real configuration |
-| `%APPDATA%\LItsshP\state.json` | LItsshP | window geometry and UI preferences only |
+| `~/.ssh/*` | OpenSSH | keys, `known_hosts`; the app reads and edits these through `keys.py` |
+| `%APPDATA%\LItsshP\state.json` | LItsshP | window geometry, UI preferences, snippets, last layout |
+| `%APPDATA%\LItsshP\logs` | LItsshP | one file per session when session logging is enabled |
 | `%TEMP%\LItsshP` | LItsshP | fallback folder for downloads when the chosen destination is unwritable |
 
 `paths.home()` deliberately prefers `USERPROFILE` over `HOME` on Windows,
@@ -34,6 +41,8 @@ Windows path for the spawned processes.
 | `tssh` | every session | tab enters `failed`, toast names `winget install trzsz.tssh` |
 | `ssh` | spawned by tssh | tssh reports the error in the terminal |
 | `sftp` | transfer window | `sftp was not found. Install the OpenSSH client.` |
+| `ssh-keygen` | creating and deleting keys | the key sheet reports the error; listing still works, because fingerprints are computed locally |
+| `ssh-keyscan` | "scan a host" before trusting it | the scan reports the error; the host can still be trusted by connecting once |
 
 `PtySession` resolves `tssh` through `paths.find_tssh()`, so the executable
 path is recorded on the session object for diagnostics.

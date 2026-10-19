@@ -53,6 +53,8 @@ Or directly:
 | Groups | `#!! GroupLabels prod web` |
 | Hidden hosts | `#!! HideHost yes` |
 | Password field | `#!! encPassword <hex>` plus `#!! encQuestionAnswer1`, byte-compatible with tssh |
+| Plain password | `#!! Password <text>` is kept in that form when edited, not converted |
+| Startup command | `#!! StartupCommand <text>` — LItsshP's own option, typed once the shell is ready |
 | Advanced tab | `ProxyJump`, `ProxyCommand`, `IdentityFile`, `IdentitiesOnly` |
 | Port forwarding | `LocalForward`, `RemoteForward`, `DynamicForward` in the host's block |
 | Raw block editor | the literal text of the block, written back verbatim |
@@ -84,6 +86,9 @@ Python (`app/style.py`) so no C++ toolchain is needed.
 | `Ctrl+B` | toggle the sidebar |
 | `Ctrl+Shift+P` | command palette |
 | `Ctrl+Shift+T` | port forwarding panel |
+| `Ctrl+F` | search the active terminal's scrollback |
+| `Ctrl+Shift+D` | split the terminal (opens a chooser for the second pane) |
+| `Ctrl+Shift+O` | reopen the tabs of the previous session |
 | `Ctrl+R` | reconnect the active session |
 | `Ctrl+Shift+R` | reload hosts from disk |
 | `Ctrl+Shift+C` / `Ctrl+Shift+V` | copy selection / paste |
@@ -113,6 +118,114 @@ Settings.
 Sent lines are typed to the shell exactly as if entered by hand, so line
 continuations and multi-line blocks behave normally instead of sitting in a
 paste buffer.
+
+### Search, logs and reconnects
+
+`Ctrl+F` opens a search bar over the active terminal. It searches the
+scrollback as well as the visible screen, highlights every hit (the current one
+more strongly), and `Enter` / `Shift+Enter` move between them. Search is
+case-insensitive until the `Aa` button is pressed. `Escape` closes the bar and
+leaves the scroll position where the last hit was found.
+
+Two things that make a long-lived session survivable are in Settings:
+
+- **Session log** appends each session's printable output to a file under
+  `%APPDATA%\LItsshP\logs`. Escape sequences are stripped and a line redrawn
+  with carriage returns keeps its last revision, so the file reads like the
+  screen rather than like raw PTY traffic. The button next to the switch opens
+  the folder.
+- **Auto-reconnect** restarts a session that was dropped, with a capped
+  backoff (1, 2, 4, 8, 16 seconds, then every 30 s, giving up after five
+  attempts). Only a drop is retried: tssh's keep-alive timeout (exit 205) and
+  transport failure (255). A shell you exited with `exit`, a tab you closed and
+  a session you reconnected deliberately are left alone.
+
+The keep-alive interval (Off / 15 / 30 / 60 seconds) is passed as
+`ServerAliveInterval` when the host's own config does not set one, so an
+explicit value in `~/.ssh/config` always wins.
+
+### Fonts, Chinese text and fallback
+
+Settings offers a terminal font and a **fallback for missing glyphs**. Most
+programming fonts ship no CJK, so without a fallback `中文`, `日本語` and
+full-width punctuation come from whatever font the system happens to pick —
+often a serif that looks nothing like the terminal text. Choosing a fallback
+makes those characters come from the named family while everything else stays
+in the primary font.
+
+The substitution is per character: a glyph is drawn with the fallback only if
+the primary font has no glyph for it. Qt's `setFamilies` list looks like it
+does this, but it only orders family *resolution* — the same CJK font is used
+no matter what the second entry says — so the terminal checks coverage with
+`QRawFont.supportsCharacter` and paints the exceptions itself. The cell size
+always comes from the primary font, so switching the fallback never reflows the
+grid. The menu lists only families that actually contain a CJK glyph; if the
+saved default is not installed, the first installed one is used instead.
+
+Full-width characters occupy two columns, with the glyph centred in that box.
+This matters beyond looks: line-drawing and table output from tools like `htop`
+or `vim` aligns only if every wide glyph advances exactly two cells.
+
+### Split panes
+
+`Ctrl+Shift+D` (or **Split** in the status bar) opens a chooser listing open
+tabs and idle hosts; picking one shows it beside the active session. The two
+panes are ordinary tabs, so closing a split returns to a single pane without
+losing either shell.
+
+The split toolbar names both hosts, has a **Broadcast** switch and a close
+button. With Broadcast on, the command composer types into both panes, which is
+the usual way to run one command on two servers. Output, search, logging and
+reconnect stay per-pane; the split itself is not duplicated into another
+window.
+
+### Snippets and startup commands
+
+A snippet is a named command (or short block) stored in `state.json`. The
+command palette lists them, and choosing one types it into the active session.
+**Manage snippets** in the palette opens the editor, which can also run a
+snippet immediately.
+
+A host can additionally carry a startup command in the host editor, saved as
+`#!! StartupCommand`. It is typed once the shell has reported itself ready, not
+passed as a remote command, so `cd /srv/app`, `tmux attach` or a `source` run
+exactly as if typed. The option is LItsshP's own: `tssh` ignores it, so keep
+anything the CLI must also do in the shell's own profile.
+
+### SSH keys and known hosts
+
+**Keys** at the bottom of the sidebar (or **Manage keys** in Settings) lists
+every key pair in `~/.ssh`, including keys referenced by a host's
+`IdentityFile` but stored elsewhere. Each row shows the type, size, comment and
+the `SHA256:` fingerprint computed from the key blob — the same value
+`ssh-keygen -lf` prints.
+
+From there you can:
+
+- create an ed25519 key (or RSA, for old servers) with an optional passphrase
+  and comment; an existing file is never overwritten;
+- copy a public key, or **install it on a host**, which opens (or reuses) that
+  host's session and appends the line to `~/.ssh/authorized_keys` with the
+  right permissions — done through the session rather than SFTP because the
+  first login still needs a password and the folder may not exist yet;
+- delete a key pair (both halves, after confirmation);
+- review and **forget** entries in `known_hosts`, including hashed `|1|` rows
+  (a hashed row has no readable name, so it is removed by position);
+- **Trust a host** scans a host with `ssh-keyscan` and shows its fingerprints,
+  which you compare before adding them. Scanning trusts nothing on its own.
+
+Creating a key runs `ssh-keygen`. Listing and fingerprinting do not: the
+fingerprint is computed locally from the public blob, so a passphrase-protected
+key and a machine without `ssh-keygen` both still list correctly.
+
+### Reopening the last session
+
+LItsshP records the open tabs, the active one and the split in `state.json`,
+but never dials out on its own at launch. **Reopen last session** (on the empty
+state, in the palette, or `Ctrl+Shift+O`) restores them; hosts that have since
+been deleted from the config are skipped. The restore is explicit because a
+terminal that connects to production the moment it starts is a surprise on a
+metered link, and an unattended launch should not produce login attempts.
 
 ### Port forwarding
 
@@ -214,6 +327,7 @@ app/
   terminal_theme.py  terminal palette derived from the Material scheme
   sftp_client.py     batch sftp for metadata, PTY-driven transfers with progress
   tunnel.py          forwarding specs + supervised `tssh -N` processes
+  keys.py            key listing/fingerprinting, ssh-keygen wrappers, known_hosts
   style.py           Python port of the library's StyleManager / ColorHelper
   qml/               Main, HostSidebar, Workspace, TerminalPane, TransferWindow…
 third_party/md3/     vendored material-components-qml QML module
@@ -227,8 +341,8 @@ pyte and repaints, so no Qt object is ever touched off-thread.
 ## Configuration
 
 LItsshP itself stores only UI preferences in `%APPDATA%\LItsshP\state.json`
-(window geometry, theme, font). Hosts and credentials never leave
-`~/.ssh/config`.
+(window geometry, theme, font, snippets, the tabs of the last session). Hosts
+and credentials never leave `~/.ssh/config`.
 
 Environment overrides, useful for testing against a scratch config:
 
@@ -236,6 +350,8 @@ Environment overrides, useful for testing against a scratch config:
 - `LITSSHP_TSSH` — path to the tssh executable
 - `LITSSHP_SFTP` — path to the `sftp` executable used by the transfer window
 - `LITSSHP_STATE` — path to the UI state file
+- `LITSSHP_LOGS` — folder for session logs (default
+  `%APPDATA%\LItsshP\logs`)
 
 ## Documentation
 
@@ -248,11 +364,12 @@ than with it:
   the invariants every change must preserve, the verification gates and the
   full QML-facing API.
 
-Two of those gates are runnable as they stand and cover the most common
-breakages:
+The gates are runnable as they stand and cover the most common breakages:
 
 ```bash
 .venv/Scripts/python docs/skills/reference/qml_load_gate.py
 .venv/Scripts/python docs/skills/reference/config_roundtrip_gate.py
+.venv/Scripts/python docs/skills/reference/forward_roundtrip_gate.py
+.venv/Scripts/python docs/skills/reference/session_features_gate.py
 ```
 
