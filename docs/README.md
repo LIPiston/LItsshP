@@ -9,9 +9,10 @@ This directory holds two kinds of material:
   playbooks stand on: architecture, invariants, verification gates, the
   QML/controller API surface and the environment overrides.
 
-The user-facing description of the app stays in the top-level
-[README](../README.md); it is the only page a person who just wants to use
-LItsshP needs to read.
+The user-facing description of the app stays in the top-level README — it is
+the only page a person who just wants to use LItsshP needs to read. The
+Chinese version is [`README.md`](../README.md) (the default) and the English one
+is [`README_en.md`](../README_en.md); each links to the other at the top.
 
 ## Where to start
 

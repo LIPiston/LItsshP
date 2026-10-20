@@ -12,13 +12,13 @@ Three kinds of pages exist, and they answer to different rules.
 
 | Change | Update |
 | --- | --- |
-| a shortcut, menu item, or visible control | README (Keyboard / Interface sections) |
-| a new setting | README Settings paragraph **and** `reference/qml-api.md` (settings keys) |
+| a shortcut, menu item, or visible control | both READMEs (Keyboard / Interface sections) |
+| a new setting | both READMEs' Settings paragraph **and** `reference/qml-api.md` (settings keys) |
 | a new controller member used by QML | `reference/qml-api.md` |
 | a new invariant or a changed one | `reference/invariants.md` |
 | a new or changed check | `reference/verification.md` and `skills/testing.md` |
-| a new `LITSSHP_*` variable or default path | README's Configuration list **and** `reference/environment.md` |
-| a new module or a changed data flow | README Architecture block **and** `reference/architecture.md` |
+| a new `LITSSHP_*` variable or default path | both READMEs' Configuration list **and** `reference/environment.md` |
+| a new module or a changed data flow | both READMEs' Architecture block **and** `reference/architecture.md` |
 | a workaround for a platform defect | `skills/fixing-defects.md` (and the code comment that explains it) |
 
 If a change touches behaviour a playbook describes, the playbook is part of
@@ -27,6 +27,14 @@ works is worse than no page.
 
 ## README conventions
 
+- Two files, one content: `README.md` is the Chinese default and
+  `README_en.md` is the English one. Each opens with a one-line language
+  switch (`**简体中文** · [English](README_en.md)`), and the two are kept in
+  step — a change to one is a change to both, same headings, same order.
+- The UI itself is English-only, so translated pages keep visible labels
+  (`Reload`, `Keep running`, `Upload ↑`) verbatim and gloss them in the local
+  language. Translating a button caption the user cannot find on screen is
+  worse than leaving it in English.
 - It opens with what the app is and the one decision that explains everything:
   each session is a real `tssh` process and hosts live in `~/.ssh/config`.
 - The ASCII diagram at the top is a sketch, not a spec; keep it roughly in
@@ -42,7 +50,7 @@ works is worse than no page.
 
 ## Style
 
-- Plain English, present tense, no marketing adjectives.
+- Plain language, present tense, no marketing adjectives.
 - Say `this PC → host`, not "upload", when describing the route; keep
   "upload"/"download" only where the button label actually says it.
 - Use `~/.ssh/config` verbatim, and `%TEMP%\LItsshP` for the fallback folder.
@@ -70,6 +78,6 @@ kind of doc drift this page exists to prevent.
 - `docs/README.md` is the hub; every skill page is one click from it.
 - Skills link to reference sheets as `reference/<page>.md`; reference sheets
   link back as `../<skill>.md`.
-- The top-level README links here once, under a short "Documentation" line, so
-  a user who wants to modify the app can find it without reading the repo
-  tree.
+- The top-level READMEs link here once, under a short "Documentation" /
+  "文档" line, so a user who wants to modify the app can find it without
+  reading the repo tree.

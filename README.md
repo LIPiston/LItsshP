@@ -1,14 +1,14 @@
 # LItsshP
 
-A flat, Termius-style GUI for [trzsz-ssh (tssh)](https://github.com/trzsz/trzsz-ssh).
-It is **not** a reimplementation of an SSH client: every session is a real
-`tssh <alias>` process running inside a pseudoterminal, so ProxyJump,
-`encPassword`, trzsz transfers, `#!!` options and everything else tssh does keep
-working exactly as they do in the CLI.
+**简体中文** · [English](README_en.md)
 
-Sessions are not stored in a separate database. Both the GUI and the CLI read
-and write the same `~/.ssh/config`, so a host added here is immediately usable
-with `tssh <alias>` and vice versa.
+一个扁平风格、Termius 式的 [trzsz-ssh (tssh)](https://github.com/trzsz/trzsz-ssh)
+图形界面。它**不是** SSH 客户端的重新实现：每个会话都是一个真实的
+`tssh <alias>` 进程，运行在伪终端里，因此 ProxyJump、`encPassword`、trzsz
+文件传输、`#!!` 选项以及 tssh 的其他一切行为都和命令行里完全一致。
+
+会话不存在单独的数据库里。图形界面和命令行读写的是同一个 `~/.ssh/config`，
+所以在这里添加的主机立刻就能用 `tssh <alias>` 连接，反过来也一样。
 
 ```
 ┌────────────────┬──────────────────────────────────────────────┐
@@ -23,15 +23,15 @@ with `tssh <alias>` and vice versa.
 └────────────────┴──────────────────────────────────────────────┘
 ```
 
-## Requirements
+## 运行环境
 
-- Windows 10/11 (the PTY layer uses ConPTY via `pywinpty`)
+- Windows 10/11（PTY 层通过 `pywinpty` 使用 ConPTY）
 - Python 3.10+
-- [tssh](https://github.com/trzsz/trzsz-ssh) on `PATH` (or set `LITSSHP_TSSH`
-  to the executable)
-- An OpenSSH client — tssh shells out to `ssh`
+- `PATH` 中有 [tssh](https://github.com/trzsz/trzsz-ssh)（或用 `LITSSHP_TSSH`
+  指向可执行文件）
+- 一个 OpenSSH 客户端 —— tssh 会调用 `ssh`
 
-## Install and run
+## 安装与运行
 
 ```bat
 py -3 -m venv .venv
@@ -39,347 +39,309 @@ py -3 -m venv .venv
 run.bat
 ```
 
-Or directly:
+或者直接启动：
 
 ```bat
 .venv\Scripts\python -m app.main
 ```
 
-## How it maps onto tssh
+## 与 tssh 的对应关系
 
-| GUI concept | tssh / OpenSSH equivalent |
+| 界面概念 | tssh / OpenSSH 中的实现 |
 | --- | --- |
-| Host list | every concrete `Host` block in `~/.ssh/config` (and any `Include`d files) |
-| Groups | `#!! GroupLabels prod web` |
-| Hidden hosts | `#!! HideHost yes` |
-| Password field | `#!! encPassword <hex>` plus `#!! encQuestionAnswer1`, byte-compatible with tssh |
-| Plain password | `#!! Password <text>` is kept in that form when edited, not converted |
-| Startup command | `#!! StartupCommand <text>` — LItsshP's own option, typed once the shell is ready |
-| Advanced tab | `ProxyJump`, `ProxyCommand`, `IdentityFile`, `IdentitiesOnly` |
-| Port forwarding | `LocalForward`, `RemoteForward`, `DynamicForward` in the host's block |
-| Raw block editor | the literal text of the block, written back verbatim |
+| 主机列表 | `~/.ssh/config`（以及被 `Include` 的文件）里的每个具体 `Host` 块 |
+| 分组 | `#!! GroupLabels prod web` |
+| 隐藏主机 | `#!! HideHost yes` |
+| 密码字段 | `#!! encPassword <hex>` 加 `#!! encQuestionAnswer1`，与 tssh 字节级兼容 |
+| 明文密码 | 编辑时保持 `#!! Password <text>` 原样，不会自动转换 |
+| 启动命令 | `#!! StartupCommand <text>` —— LItsshP 自己的选项，在 shell 就绪后输入 |
+| 高级标签页 | `ProxyJump`、`ProxyCommand`、`IdentityFile`、`IdentitiesOnly` |
+| 端口转发 | 主机块里的 `LocalForward`、`RemoteForward`、`DynamicForward` |
+| 原始块编辑器 | 该块的原文，原样写回 |
 
-Passwords are encoded with tssh's own scheme — a fixed AES-256-GCM key whose
-only purpose is obfuscation, not protection. Anyone who can read the config can
-decode it, exactly as with tssh itself.
+密码使用 tssh 自己的方案编码 —— 一个固定的 AES-256-GCM 密钥，只用于混淆，
+不提供保护。任何能读到配置文件的人都能解开，和 tssh 本身一样。
 
-Editing a host does not rewrite unrelated blocks: untouched hosts stay
-byte-identical, including comments, ordering, CRLF line endings and a UTF-8 BOM.
+编辑主机不会重写无关的块：未被改动的主机保持字节级不变，包括注释、顺序、
+CRLF 换行和 UTF-8 BOM。
 
-## Interface
+## 界面
 
-The look follows [Pebrel](https://github.com/Kuddev/pebrel): flush planes with
-no floating cards, one accent used only for selection and primary actions,
-hairline separators instead of borders, no elevation or shadows, and a compact
-radius ladder (4 chip / 6 control / 7 icon tile / 8 overlay / 14 launcher).
-Two theme families ship, each with a dark and a light member: **Catppuccin**
-(Mocha / Latte) and **Mono**, a greyscale pair in which states are separated by
-brightness rather than hue.
+外观参考 [Pebrel](https://github.com/Kuddev/pebrel)：平面化、没有悬浮卡片，
+只用一个强调色，且仅用于选中态和主要操作；用发丝线而不是边框分隔；没有阴影
+和层级；圆角梯级紧凑（4 芯片 / 6 控件 / 7 图标块 / 8 浮层 / 14 启动器）。
+内置两个主题系列，各含深色和浅色两个成员：**Catppuccin**（Mocha / Latte）和
+**Mono**（灰阶，用亮度而不是色相区分状态）。
 
-Themes are plain YAML, seeded into the application data directory on first
-launch (`%APPDATA%\LItsshP\themes`) and editable from there — retune a colour,
-add a variant, or define a whole new family, then press **Reload** in Settings →
-Appearance. Nothing under `~/.ssh` is touched: that directory belongs to the
-ssh tools. A file that fails to parse is skipped and the reason is shown next to
-the button, so a typo degrades to the shipped palette instead of a broken
-window. The terminal palette is derived from the same YAML, so the session never
-looks pasted into the window. Components come from
-[material-components-qml](https://github.com/sudoevolve/material-components-qml.git),
-vendored under `third_party/md3`, with its C++ style singletons reimplemented in
-Python (`app/style.py`) so no C++ toolchain is needed.
+主题就是普通的 YAML 文件，首次启动时写入应用数据目录
+（`%APPDATA%\LItsshP\themes`），此后可以直接编辑 —— 调整某个颜色、增加一个
+变体，或定义一整个新系列，然后在 Settings → Appearance（设置 → 外观）里点
+**Reload** 即可。
+`~/.ssh` 下的任何内容都不会被碰：那个目录属于 ssh 工具自己。解析失败的文件
+会被跳过，原因显示在按钮旁边，所以一个笔误只会退回内置配色，而不会让窗口失去
+主题。终端配色同样由这份 YAML 派生，所以会话区域不会看起来像贴进窗口的一块
+黑色方块。控件来自
+[material-components-qml](https://github.com/sudoevolve/material-components-qml.git)，
+放在 `third_party/md3` 下，其 C++ 样式单例用 Python 重新实现
+（`app/style.py`），因此不需要 C++ 工具链。
 
-### Keyboard
+### 快捷键
 
-| Shortcut | Action |
+| 快捷键 | 操作 |
 | --- | --- |
-| `Ctrl+T` | focus the host search |
-| `Ctrl+N` | new host |
-| `Ctrl+W` | close the active tab (asks first if the session is running) |
-| `Ctrl+Tab` / `Ctrl+Shift+Tab` | next / previous tab |
-| `Ctrl+,` | settings |
-| `Ctrl+B` | toggle the sidebar |
-| `Ctrl+Shift+P` | command palette |
-| `Ctrl+Shift+T` | port forwarding panel |
-| `Ctrl+F` | search the active terminal's scrollback |
-| `Ctrl+Shift+D` | split the terminal (opens a chooser for the second pane) |
-| `Ctrl+Shift+O` | reopen the tabs of the previous session |
-| `Ctrl+R` | reconnect the active session |
-| `Ctrl+Shift+R` | reload hosts from disk |
-| `Ctrl+Shift+C` / `Ctrl+Shift+V` | copy selection / paste |
-| `Ctrl+Shift+A` | select the visible screen |
-| `Ctrl+Shift+E` | focus the command composer |
-| `Shift+PgUp` / `Shift+PgDn` | scroll back / forward (bare PgUp/PgDn go to the app) |
-| `Ctrl+Home` / `Ctrl+End` | top of scrollback / live view |
+| `Ctrl+T` | 聚焦主机搜索框 |
+| `Ctrl+N` | 新建主机 |
+| `Ctrl+W` | 关闭当前标签页（会话仍在运行时先确认） |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | 下一个 / 上一个标签页 |
+| `Ctrl+,` | 设置 |
+| `Ctrl+B` | 显示 / 隐藏侧边栏 |
+| `Ctrl+Shift+P` | 命令面板 |
+| `Ctrl+Shift+T` | 端口转发面板 |
+| `Ctrl+F` | 在当前终端的回滚内容中搜索 |
+| `Ctrl+Shift+D` | 分屏（弹出选择器挑选第二个窗格） |
+| `Ctrl+Shift+O` | 恢复上次会话的标签页 |
+| `Ctrl+R` | 重连当前会话 |
+| `Ctrl+Shift+R` | 从磁盘重新读取主机 |
+| `Ctrl+Shift+C` / `Ctrl+Shift+V` | 复制选中内容 / 粘贴 |
+| `Ctrl+Shift+A` | 全选可见屏幕 |
+| `Ctrl+Shift+E` | 聚焦命令输入条 |
+| `Shift+PgUp` / `Shift+PgDn` | 向上 / 向下滚动（单独的 PgUp/PgDn 交给终端里的程序） |
+| `Ctrl+Home` / `Ctrl+End` | 回滚内容顶部 / 回到实时画面 |
 
-`Ctrl+C` alone is never intercepted while it could be SIGINT; only
-`Ctrl+Shift+C` copies. Right-clicking the terminal offers Copy / Paste /
-Select all / Clear selection, and keeps passing the click to vim, tmux and
-friends when they are tracking the mouse (`Shift`+right-click always shows the
-app menu).
+单独的 `Ctrl+C` 在可能表示 SIGINT 时永远不会被拦截，只有 `Ctrl+Shift+C`
+才复制。右键点击终端会弹出 Copy / Paste / Select all / Clear selection，
+而当 vim、tmux 之类的程序正在接管鼠标时，点击仍会照常传给它们（`Shift` +
+右键始终弹出应用菜单）。
 
-The sidebar header doubles as the title bar: drag it to move the window,
-double-click to maximize.
+侧边栏顶部同时充当标题栏：拖动它移动窗口，双击最大化。
 
-### Command composer
+### 命令输入条
 
-A strip under the terminal holds a command (or a short block of commands) that
-can be prepared while a session is busy. It does not intercept normal typing —
-keys still go to the terminal unless the field has focus. Enter inserts a
-newline, `Ctrl+Enter` sends, and `Ctrl+Up` / `Ctrl+Down` recall earlier entries.
-Toggle it from the keyboard icon in the tab strip, with `Ctrl+Shift+E`, or in
-Settings.
+终端下方有一条输入区，可以在会话忙碌时先把一条命令（或一小段命令）写好。它
+不会拦截正常输入 —— 除非输入框获得焦点，按键仍然进入终端。回车插入换行，
+`Ctrl+Enter` 发送，`Ctrl+Up` / `Ctrl+Down` 调出之前的条目。可以用标签栏上的
+键盘图标、`Ctrl+Shift+E`，或设置里的开关来切换。
 
-Sent lines are typed to the shell exactly as if entered by hand, so line
-continuations and multi-line blocks behave normally instead of sitting in a
-paste buffer.
+发送时按手敲的方式逐字符输入给 shell，因此续行和多行块的表现和正常输入一致，
+不会停留在粘贴缓冲区里。
 
-### Search, logs and reconnects
+### 搜索、日志与重连
 
-`Ctrl+F` opens a search bar over the active terminal. It searches the
-scrollback as well as the visible screen, highlights every hit (the current one
-more strongly), and `Enter` / `Shift+Enter` move between them. Search is
-case-insensitive until the `Aa` button is pressed. `Escape` closes the bar and
-leaves the scroll position where the last hit was found.
+`Ctrl+F` 会在当前终端上方打开搜索栏。它同时搜索回滚内容和可见屏幕，高亮所有
+命中（当前命中更明显），`Enter` / `Shift+Enter` 在命中之间跳转。按下 `Aa`
+按钮之前搜索不区分大小写。`Escape` 关闭搜索栏，并把滚动位置留在最后找到的
+命中处。
 
-Two things that make a long-lived session survivable are in Settings:
+让长时间会话活下来的两个开关在设置里（界面文案是英文）：
 
-- **Session log** appends each session's printable output to a file under
-  `%APPDATA%\LItsshP\logs`. Escape sequences are stripped and a line redrawn
-  with carriage returns keeps its last revision, so the file reads like the
-  screen rather than like raw PTY traffic. The button next to the switch opens
-  the folder.
-- **Auto-reconnect** restarts a session that was dropped, with a capped
-  backoff (1, 2, 4, 8, 16 seconds, then every 30 s, giving up after five
-  attempts). Only a drop is retried: tssh's keep-alive timeout (exit 205) and
-  transport failure (255). A shell you exited with `exit`, a tab you closed and
-  a session you reconnected deliberately are left alone.
+- **Write session output to a log file**（会话日志）把每个会话的可打印输出
+  追加到 `%APPDATA%\LItsshP\logs` 下的文件。转义序列会被剥离，被回车重新绘制
+  的行只保留最后一版，所以文件读起来像屏幕内容而不是原始 PTY 流量。开关旁边
+  的 **Open folder** 会打开该文件夹。
+- **Reconnect automatically when a connection drops**（自动重连）会重启被断开
+  的会话，退避间隔有上限（1、2、4、8、16 秒，之后每 30 秒一次，尝试五次后
+  放弃）。只有掉线才会重试：tssh 的保活超时（退出码 205）和传输失败（255）。
+  你自己 `exit` 退出的 shell、你关掉的标签页，以及你主动重连的会话都不会被
+  处理。
 
-The keep-alive interval (Off / 15 / 30 / 60 seconds) is passed as
-`ServerAliveInterval` when the host's own config does not set one, so an
-explicit value in `~/.ssh/config` always wins.
+保活间隔（关 / 15 / 30 / 60 秒）在主机自身配置没有设置时作为
+`ServerAliveInterval` 传入，所以 `~/.ssh/config` 里显式写的值总是优先。
 
-### Fonts, Chinese text and fallback
+### 字体、中文与回退字体
 
-Settings offers a terminal font and a **fallback for missing glyphs**. Most
-programming fonts ship no CJK, so without a fallback `中文`, `日本語` and
-full-width punctuation come from whatever font the system happens to pick —
-often a serif that looks nothing like the terminal text. Choosing a fallback
-makes those characters come from the named family while everything else stays
-in the primary font.
+设置里可以选择终端字体和一个**缺失字形回退字体**。大多数编程字体不带 CJK，
+没有回退时 `中文`、`日本語` 和全角标点会由系统随便挑一个字体绘制 —— 往往是
+一个和终端文字完全不搭的衬线体。指定回退字体后，这些字符来自指定字体，其余
+字符仍用主字体。
 
-The substitution is per character: a glyph is drawn with the fallback only if
-the primary font has no glyph for it. Qt's `setFamilies` list looks like it
-does this, but it only orders family *resolution* — the same CJK font is used
-no matter what the second entry says — so the terminal checks coverage with
-`QRawFont.supportsCharacter` and paints the exceptions itself. The cell size
-always comes from the primary font, so switching the fallback never reflows the
-grid. The menu lists only families that actually contain a CJK glyph; if the
-saved default is not installed, the first installed one is used instead.
+替换是逐字符进行的：只有主字体没有该字形时才用回退字体绘制。Qt 的
+`setFamilies` 列表看起来能做到这件事，但它只决定字体*族*的解析顺序 —— 无论
+第二项写什么，用的都是同一个 CJK 字体 —— 所以终端用
+`QRawFont.supportsCharacter` 检查覆盖情况，并自己绘制这些例外。单元格尺寸
+始终来自主字体，所以切换回退字体永远不会让网格重排。菜单里只列出真正包含 CJK
+字形的字体；如果保存的默认字体没有安装，就改用第一个已安装的。
 
-Full-width characters occupy two columns, with the glyph centred in that box.
-This matters beyond looks: line-drawing and table output from tools like `htop`
-or `vim` aligns only if every wide glyph advances exactly two cells.
+全角字符占两列，字形在两列宽度的格子里居中。这不只是观感问题：只有当每个宽
+字形都正好前进两格时，`htop`、`vim` 这类工具画出的线框和表格才会对齐。
 
-### Split panes
+### 分屏
 
-`Ctrl+Shift+D` (or **Split** in the status bar) opens a chooser listing open
-tabs and idle hosts; picking one shows it beside the active session. The two
-panes are ordinary tabs, so closing a split returns to a single pane without
-losing either shell.
+`Ctrl+Shift+D`（或状态栏里的 **Split**）会弹出选择器，列出已打开的标签页和
+空闲主机；选中一个就会把它显示在当前会话旁边。两个窗格都是普通标签页，因此
+关闭分屏就回到单窗格，两边的 shell 都不会丢。
 
-The split toolbar names both hosts, has a **Broadcast** switch and a close
-button. With Broadcast on, the command composer types into both panes, which is
-the usual way to run one command on two servers. Output, search, logging and
-reconnect stay per-pane; the split itself is not duplicated into another
-window.
+分屏工具栏会显示两个主机名，带一个 **Broadcast** 开关和一个关闭按钮。开启
+Broadcast 后，命令输入条会同时向两个窗格输入，这是在一台以上服务器上跑同一条
+命令的常用方式。输出、搜索、日志和重连仍然各窗格独立；分屏本身不会被复制到
+另一个窗口。
 
-### Snippets and startup commands
+### 片段与启动命令
 
-A snippet is a named command (or short block) stored in `state.json`. The
-command palette lists them, and choosing one types it into the active session.
-**Manage snippets** in the palette opens the editor, which can also run a
-snippet immediately.
+片段是存在 `state.json` 里的具名命令（或一小段命令）。命令面板会列出它们，
+选中即输入到当前会话中。面板里的 **Manage snippets** 打开编辑器，编辑器也能
+立即执行某个片段。
 
-A host can additionally carry a startup command in the host editor, saved as
-`#!! StartupCommand`. It is typed once the shell has reported itself ready, not
-passed as a remote command, so `cd /srv/app`, `tmux attach` or a `source` run
-exactly as if typed. The option is LItsshP's own: `tssh` ignores it, so keep
-anything the CLI must also do in the shell's own profile.
+主机还可以在主机编辑器里带一条启动命令，保存为 `#!! StartupCommand`。它在
+shell 报告就绪之后才被输入，而不是作为远程命令传入，所以 `cd /srv/app`、
+`tmux attach` 或 `source` 的表现和手敲完全一样。这个选项是 LItsshP 自己的：
+`tssh` 会忽略它，所以命令行也需要执行的动作请放回 shell 自己的配置文件里。
 
-### SSH keys and known hosts
+### SSH 密钥与 known hosts
 
-**Keys** at the bottom of the sidebar (or **Manage keys** in Settings) lists
-every key pair in `~/.ssh`, including keys referenced by a host's
-`IdentityFile` but stored elsewhere. Each row shows the type, size, comment and
-the `SHA256:` fingerprint computed from the key blob — the same value
-`ssh-keygen -lf` prints.
+侧边栏底部的 **Keys**（或设置里的 **Manage keys**）列出 `~/.ssh` 中的所有密钥
+对，包括被主机的 `IdentityFile` 引用但存在别处的密钥。每行显示类型、位数、
+注释，以及从公钥 blob 本地算出的 `SHA256:` 指纹 —— 与 `ssh-keygen -lf`
+打印的值相同。
 
-From there you can:
+在这里可以：
 
-- create an ed25519 key (or RSA, for old servers) with an optional passphrase
-  and comment; an existing file is never overwritten;
-- copy a public key, or **install it on a host**, which opens (or reuses) that
-  host's session and appends the line to `~/.ssh/authorized_keys` with the
-  right permissions — done through the session rather than SFTP because the
-  first login still needs a password and the folder may not exist yet;
-- delete a key pair (both halves, after confirmation);
-- review and **forget** entries in `known_hosts`, including hashed `|1|` rows
-  (a hashed row has no readable name, so it is removed by position);
-- **Trust a host** scans a host with `ssh-keyscan` and shows its fingerprints,
-  which you compare before adding them. Scanning trusts nothing on its own.
+- 创建 ed25519 密钥（或供老服务器使用的 RSA），可设置口令和注释；已存在的
+  文件永远不会被覆盖；
+- 复制公钥，或**把它安装到某台主机上** —— 这会打开（或复用）该主机的会话，
+  并把该行追加到 `~/.ssh/authorized_keys` 且设置正确权限。之所以通过会话而
+  不是 SFTP 完成，是因为首次登录仍需要密码，而且该目录可能还不存在；
+- 删除密钥对（两半都删，删除前确认）；
+- 查看并**忘记** `known_hosts` 中的条目，包括哈希过的 `|1|` 行（哈希行没有
+  可读名字，因此按位置删除）；
+- **Trust a host**（信任主机）会用 `ssh-keyscan` 扫描主机并显示其指纹，由你
+  核对后再添加。扫描本身不会信任任何东西。
 
-Creating a key runs `ssh-keygen`. Listing and fingerprinting do not: the
-fingerprint is computed locally from the public blob, so a passphrase-protected
-key and a machine without `ssh-keygen` both still list correctly.
+创建密钥会调用 `ssh-keygen`。列出和计算指纹不会：指纹由公钥 blob 本地算出，
+所以带口令的密钥和没装 `ssh-keygen` 的机器都能正常列出。
 
-### Reopening the last session
+### 恢复上次会话
 
-LItsshP records the open tabs, the active one and the split in `state.json`,
-but never dials out on its own at launch. **Reopen last session** (on the empty
-state, in the palette, or `Ctrl+Shift+O`) restores them; hosts that have since
-been deleted from the config are skipped. The restore is explicit because a
-terminal that connects to production the moment it starts is a surprise on a
-metered link, and an unattended launch should not produce login attempts.
+LItsshP 会把打开的标签页、当前标签和分屏记录在 `state.json` 里，但启动时
+从不自行拨号。**Reopen last session**（在空状态页、命令面板里，或
+`Ctrl+Shift+O`）会恢复它们；已经从配置中删除的主机会被跳过。恢复之所以是
+显式操作，是因为一个启动就连生产环境的终端在按流量计费的网络上会是个惊吓，
+而且无人值守的启动不应该产生登录尝试。
 
-### Port forwarding
+### 端口转发
 
-Rules are ordinary `LocalForward`, `RemoteForward` and `DynamicForward` lines in
-the host's block, edited in the host editor. They are visible to `ssh` and
-`tssh` on the command line, so a tunnel set up here keeps working outside the
-GUI.
+规则就是主机块里普通的 `LocalForward`、`RemoteForward` 和 `DynamicForward`
+行，在主机编辑器中修改。命令行上的 `ssh` 和 `tssh` 也能看到它们，所以在这里
+配好的隧道在图形界面之外照样能用。
 
-A forward is a property of a connection, not a background service. While a host
-has an open session, that session provides the rules — no second process is
-started, because it would race the session for the same local port. When the
-session ends, the forward ends with it.
+转发是连接的属性，而不是后台服务。当主机有打开的会话时，由该会话提供这些
+规则 —— 不会启动第二个进程，否则它会和会话抢同一个本地端口。会话结束时，转发
+也随之结束。
 
-`Ctrl+Shift+T` (or the `swap_horiz` icon) opens the forwarding panel. Each host
-lists the rules it is currently providing, whether they came from the host's own
-block or from a `Host *` rule, and its state. **Keep running** is the opt-in to
-survive the session: once the tab closes, the app starts its own
-`tssh -N <alias>` and hands the ports over. Those processes are still stopped
-when the app exits, so nothing keeps listening behind a closed window.
+`Ctrl+Shift+T`（或 `swap_horiz` 图标）打开转发面板。每台主机列出它当前提供的
+规则、这些规则来自主机块还是来自 `Host *` 规则，以及各自的状态。
+**Keep running** 是让转发活过会话的选项：标签页关闭后，应用会启动自己的
+`tssh -N <alias>` 并接管端口。这些进程在应用退出时仍会被停止，所以窗口关掉
+之后不会有东西继续监听。
 
-If you reopen a host whose forwards a kept-alive tunnel is already holding, the
-new session is started with `ClearAllForwardings=yes` so it does not fight for
-the same local ports.
+如果你重新打开一台主机，而保活的隧道已经占着它的转发，新会话会以
+`ClearAllForwardings=yes` 启动，以免争抢同一个本地端口。
 
-Rules inherited from a wildcard or `Include` block are shown read-only: deleting
-them from one host's editor would silently change every other host matching that
-block. Forwarding also stops if the host sets `ClearAllForwardings yes`.
+来自通配块或 `Include` 块的规则以只读方式显示：在某一台主机的编辑器里删除
+它们，会悄悄改变所有匹配该块的主机。主机设置了 `ClearAllForwardings yes`
+时，转发同样不会启动。
 
-### Transfer progress
+### 传输进度
 
-The tab strip shows a live bar with the current transfer's route
-(`this PC → host` or `host → this PC`), a percentage, and a running count. The
-`swap_vert` icon opens a list of transfers in flight plus the recent history,
-each with the same route label.
+标签栏会显示一条实时进度条，包含当前传输的路线（`本机 → 主机` 或
+`主机 → 本机`）、百分比，以及同时有多个传输时的 `+N`。`swap_vert` 图标打开
+正在进行的传输列表和最近历史，每项使用同样的路线标注；有传输在运行时该图标会
+变成强调色，数量本身则放在悬浮提示里。
 
-Progress is scraped from sftp's own meter: transfers run under a pseudoterminal
-because sftp only draws that meter when it owns a terminal. Metadata calls still
-use clean batch mode.
+进度是从 sftp 自己的进度计抓取的：传输运行在伪终端下，因为 sftp 只有在拥有
+终端时才会绘制那个进度计。元数据调用仍然使用干净的批处理模式。
 
-Inside the terminal, `Shift` overrides mouse reporting so you can always select
-text while a full-screen app (vim, htop, tmux) is grabbing the mouse.
+在终端里，`Shift` 会覆盖鼠标上报，所以即使 vim、htop、tmux 这类全屏程序正在
+抓取鼠标，你仍然可以选择文本。
 
-### Host actions
+### 主机操作
 
-Right-click any host in the sidebar for a context menu:
+右键点击侧边栏里的任意主机：
 
-| Item | Action |
+| 菜单项 | 操作 |
 | --- | --- |
-| Edit | open the host sheet (general / advanced / raw block) |
-| Transfer files | open a separate SFTP window for that host |
-| Delete | ask for confirmation, then remove the block from `~/.ssh/config` |
+| Edit | 打开主机面板（常规 / 高级 / 原始块） |
+| Transfer files | 为该主机打开一个独立的 SFTP 窗口 |
+| Delete | 请求确认，然后从 `~/.ssh/config` 中移除该块 |
 
-Delete is two-step: the dialog names the host and spells out what is removed,
-and nothing is written until it is accepted. Other hosts and their stored
-passwords are left byte-identical.
+（界面目前只有英文文案，所以这里照抄菜单里实际显示的名字，方便对照。）
 
-### Transfer files
+删除是两步的：对话框会点名主机并说明会移除什么，只有确认后才会写入。其他主机
+及其保存的密码保持字节级不变。
 
-The transfer window is a separate top-level window with a local pane on the
-left and the remote pane on the right. Click a row to tick it, double-click a
-folder to enter it, then use **Upload ↑** / **Download ↓**. Directories transfer
-recursively.
+### 传输文件
 
-Both panes open at a usable folder rather than assuming one is available:
+传输窗口是一个独立的顶层窗口，左边是本地窗格，右边是远程窗格。单击一行勾选它，
+双击文件夹进入，然后用 **Upload ↑** / **Download ↓**。目录会递归传输。
 
-- the local pane starts in your profile directory, or in `%TEMP%\LItsshP` when
-  the profile is not writable;
-- the remote pane starts in the account's `~`, and if that cannot be listed it
-  walks `~` → `/` → `/tmp` and opens the first readable one, telling you which
-  folder it settled on.
+两个窗格都会打开在一个可用的目录，而不是假定某个目录一定可用：
 
-A folder that does not exist yet but could be created counts as usable, so a
-download target like `D:\incoming` works before the folder exists. If the
-destination really cannot be written, the download falls back to
-`%TEMP%\LItsshP` instead of failing, and permission problems are reported in
-the status line rather than leaving a blank pane.
+- 本地窗格从你的用户目录开始；当用户目录不可写时，改用 `%TEMP%\LItsshP`；
+- 远程窗格从账号的 `~` 开始，如果无法列出就依次尝试 `~` → `/` → `/tmp`，
+  打开第一个可读的，并告诉你最终停在哪个目录。
 
-The footer also manages the remote folder: **New folder**, **Rename** and
-**Delete** run through the same batch `sftp` channel as the listings, so they
-need no extra connection. Delete always asks first.
+尚不存在但可以创建的文件夹也算可用，所以像 `D:\incoming` 这样的下载目标在
+文件夹存在之前就能用。如果目标确实不可写，下载会退回到 `%TEMP%\LItsshP`
+而不是失败，权限问题会显示在状态行里，而不是留下一个空白窗格。
 
-Transfers go through the OpenSSH `sftp` client, invoking the same
-`~/.ssh/config` entry the session uses, so ProxyJump, `IdentityFile` and agent
-settings all apply. This deliberately avoids trzsz, which would require `trz`
-and `tsz` to be installed on the server first; plain SFTP works against any
-OpenSSH server.
+底部的工具栏还负责管理远程文件夹：**New folder**、**Rename** 和
+**Delete** 走与列表相同的批处理 `sftp` 通道，所以不需要额外连接。删除总是
+先确认。
 
-## Architecture
+传输通过 OpenSSH 的 `sftp` 客户端进行，使用与会话相同的 `~/.ssh/config`
+条目，因此 ProxyJump、`IdentityFile` 和 agent 设置都生效。这里刻意避开 trzsz，
+因为那需要先在服务器上安装 `trz` 和 `tsz`；纯 SFTP 对任何 OpenSSH 服务器
+都有效。
+
+## 架构
 
 ```
 app/
-  main.py            entry point: QML singletons, image provider, window geometry
-  controller.py      QML-facing controller: hosts, tabs, settings, sessions
-  config.py          byte-preserving ~/.ssh/config parser and writer (+ Include)
-  secret.py          tssh-compatible encPassword encode/decode
-  pty_session.py     tssh process in a ConPTY; reader thread + GUI-side timer
-  screen.py          pyte screen subclass: scrollback, alt screen, mouse modes
-  terminal_model.py  grid → QImage renderer, key/mouse input, selection
-  terminal_theme.py  terminal palette derived from the active Pebrel theme
-  sftp_client.py     batch sftp for metadata, PTY-driven transfers with progress
-  tunnel.py          forwarding specs + supervised `tssh -N` processes
-  keys.py            key listing/fingerprinting, ssh-keygen wrappers, known_hosts
-  theme.py           Pebrel palettes, skin tokens, colour math, radius ladder
-  style.py           StyleManager / ColorHelper singletons the QML library reads
-  qml/               Main, HostSidebar, Workspace, TerminalPane, TransferWindow…
-third_party/md3/     vendored material-components-qml QML module
+  main.py            入口：QML 单例、图像提供者、窗口几何
+  controller.py      QML 侧控制器：主机、标签页、设置、会话
+  config.py          字节保真的 ~/.ssh/config 解析与写入（含 Include）
+  secret.py          与 tssh 兼容的 encPassword 编解码
+  pty_session.py     ConPTY 中的 tssh 进程；读取线程 + GUI 侧定时器
+  screen.py          pyte 屏幕子类：回滚、备用屏幕、鼠标模式
+  terminal_model.py  网格 → QImage 渲染器、键盘/鼠标输入、选中
+  terminal_theme.py  由当前 Pebrel 主题派生的终端配色
+  sftp_client.py     批处理 sftp 取元数据，PTY 驱动的带进度传输
+  tunnel.py          转发描述 + 受监管的 `tssh -N` 进程
+  keys.py            密钥列举/指纹、ssh-keygen 封装、known_hosts
+  theme.py           Pebrel 调色板、皮肤 token、颜色运算、圆角梯级
+  style.py           QML 库读取的 StyleManager / ColorHelper 单例
+  qml/               Main、HostSidebar、Workspace、TerminalPane、TransferWindow…
+third_party/md3/     内置的 material-components-qml QML 模块
 ```
 
-The terminal is rasterised in Python and handed to QML through an image
-provider (`image://terminal/<id>?<revision>`). PTY output is read on a worker
-thread and only enqueued; a timer on the GUI thread drains the queue, feeds
-pyte and repaints, so no Qt object is ever touched off-thread.
+终端在 Python 里光栅化，再通过图像提供者
+（`image://terminal/<id>?<revision>`）交给 QML。PTY 输出在工作线程读取并只
+入队；GUI 线程上的定时器排空队列、喂给 pyte 并重绘，因此任何 Qt 对象都不会被
+跨线程访问。
 
-## Configuration
+## 配置
 
-LItsshP itself stores only UI preferences in `%APPDATA%\LItsshP\state.json`
-(window geometry, theme, font, snippets, the tabs of the last session). Hosts
-and credentials never leave `~/.ssh/config`.
+LItsshP 自身只在 `%APPDATA%\LItsshP\state.json` 里保存界面偏好（窗口几何、
+主题、字体、片段、上次会话的标签页），主题则放在
+`%APPDATA%\LItsshP\themes`。主机和凭据永远不会离开 `~/.ssh/config`。
 
-Environment overrides, useful for testing against a scratch config:
+环境变量覆盖，便于针对临时配置进行测试：
 
-- `LITSSHP_CONFIG` — path to the config file (default `~/.ssh/config`)
-- `LITSSHP_TSSH` — path to the tssh executable
-- `LITSSHP_SFTP` — path to the `sftp` executable used by the transfer window
-- `LITSSHP_STATE` — path to the UI state file
-- `LITSSHP_LOGS` — folder for session logs (default
-  `%APPDATA%\LItsshP\logs`)
+- `LITSSHP_CONFIG` —— 配置文件路径（默认 `~/.ssh/config`）
+- `LITSSHP_TSSH` —— tssh 可执行文件路径
+- `LITSSHP_SFTP` —— 传输窗口使用的 `sftp` 可执行文件路径
+- `LITSSHP_STATE` —— 界面状态文件路径
+- `LITSSHP_LOGS` —— 会话日志文件夹（默认 `%APPDATA%\LItsshP\logs`）
 
-## Documentation
+## 文档
 
-[`docs/`](docs/README.md) holds the material for working on the code rather
-than with it:
+[`docs/`](docs/README.md) 放的是*开发*这个项目所需的材料，而不是使用它的材料：
 
-- [`docs/skills/`](docs/skills/index.md) — playbooks for setup, defect
-  diagnosis, the terminal renderer, transfers and the config writer;
-- [`docs/skills/reference/`](docs/skills/reference/index.md) — architecture,
-  the invariants every change must preserve, the verification gates and the
-  full QML-facing API.
+- [`docs/skills/`](docs/skills/index.md) —— 安装、缺陷诊断、终端渲染器、
+  文件传输和配置写入的实操手册；
+- [`docs/skills/reference/`](docs/skills/reference/index.md) —— 架构、每次
+  改动都必须保持的不变量、验证门禁，以及完整的 QML 侧 API。
 
-The gates are runnable as they stand and cover the most common breakages:
+这些门禁可以直接运行，覆盖最常见的破坏：
 
 ```bash
 .venv/Scripts/python docs/skills/reference/qml_load_gate.py
@@ -387,4 +349,3 @@ The gates are runnable as they stand and cover the most common breakages:
 .venv/Scripts/python docs/skills/reference/forward_roundtrip_gate.py
 .venv/Scripts/python docs/skills/reference/session_features_gate.py
 ```
-
