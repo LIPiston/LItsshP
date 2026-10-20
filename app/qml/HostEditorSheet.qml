@@ -25,7 +25,6 @@ Item {
         mode = "form"
         loadForm()
         scrim.visible = true
-        scrim.opacity = 0.4
         Qt.callLater(function() { fieldAlias.forceActiveFocus() })    }
 
     function close() {
@@ -133,8 +132,8 @@ Item {
     Rectangle {
         id: scrim
         anchors.fill: parent
-        color: "#000000"
-        opacity: 0
+        color: Theme.skin.veil
+        opacity: 1
         visible: false
         z: 1000
         MouseArea {
@@ -150,14 +149,14 @@ Item {
         width: Math.min(520, root.width - 60)
         height: root.height
         x: root.width - (scrim.visible ? sheet.width : 0)
-        color: Theme.color.surfaceContainerLow
+        color: Theme.skin.panel
         border.width: 0
 
         Rectangle {
             anchors.left: parent.left
             width: 1
             height: parent.height
-            color: Theme.color.outlineVariant
+            color: Theme.skin.hairline
         }
 
         ColumnLayout {
@@ -182,13 +181,13 @@ Item {
                             text: root.isNew ? "New host" : root.editingAlias
                             font.family: Theme.typography.titleLarge.family
                             font.pixelSize: 19
-                            color: Theme.color.onSurfaceColor
+                            color: Theme.skin.ink
                         }
                         Text {
                             text: root.isNew ? "Added to ~/.ssh/config" : "Editing in ~/.ssh/config"
                             font.family: Theme.typography.labelSmall.family
                             font.pixelSize: 11
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                     }
 
@@ -199,7 +198,7 @@ Item {
                         Layout.preferredHeight: 32
                         Rectangle {
                             anchors.fill: parent
-                            radius: 6
+                            radius: Theme.skin.radiusControl
                             color: closeHover.containsMouse ? root.window.flatHover : "transparent"
                         }
                         Text {
@@ -207,7 +206,7 @@ Item {
                             text: "close"
                             font.family: Theme.iconFont.name
                             font.pixelSize: 17
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                         MouseArea {
                             id: closeHover
@@ -223,7 +222,7 @@ Item {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: 1
-                    color: Theme.color.outlineVariant
+                    color: Theme.skin.hairline
                 }
             }
 
@@ -262,7 +261,7 @@ Item {
                                 label: "Alias"
                                 placeholderText: "prod-web"
                                 type: "outlined"
-                                labelBackgroundColor: Theme.color.surfaceContainerLow
+                                labelBackgroundColor: Theme.skin.panel
                             }
                             TextField {
                                 id: fieldPort
@@ -270,7 +269,7 @@ Item {
                                 label: "Port"
                                 placeholderText: "22"
                                 type: "outlined"
-                                labelBackgroundColor: Theme.color.surfaceContainerLow
+                                labelBackgroundColor: Theme.skin.panel
                             }
                         }
 
@@ -281,7 +280,7 @@ Item {
                             label: "Hostname"
                             placeholderText: "example.com or 10.0.0.5"
                             type: "outlined"
-                            labelBackgroundColor: Theme.color.surfaceContainerLow
+                            labelBackgroundColor: Theme.skin.panel
                         }
 
                         RowLayout {
@@ -296,7 +295,7 @@ Item {
                                 label: "User"
                                 placeholderText: "root"
                                 type: "outlined"
-                                labelBackgroundColor: Theme.color.surfaceContainerLow
+                                labelBackgroundColor: Theme.skin.panel
                             }
                             TextField {
                                 id: fieldGroups
@@ -307,7 +306,7 @@ Item {
                                 placeholderText: "prod web"
                                 supportingText: "tssh #!! GroupLabels"
                                 type: "outlined"
-                                labelBackgroundColor: Theme.color.surfaceContainerLow
+                                labelBackgroundColor: Theme.skin.panel
                             }
                         }
 
@@ -319,7 +318,7 @@ Item {
                             placeholderText: "~/.ssh/id_ed25519"
                             leadingIcon: "key"
                             type: "outlined"
-                            labelBackgroundColor: Theme.color.surfaceContainerLow
+                            labelBackgroundColor: Theme.skin.panel
                         }
 
                         TextField {
@@ -335,7 +334,7 @@ Item {
                             isPassword: true
                             readOnly: root.passwordSource === "command"
                             type: "outlined"
-                            labelBackgroundColor: Theme.color.surfaceContainerLow
+                            labelBackgroundColor: Theme.skin.panel
                         }
 
                         TextField {
@@ -347,15 +346,15 @@ Item {
                             supportingText: "LItsshP #!! StartupCommand — typed once the shell is ready"
                             leadingIcon: "play_arrow"
                             type: "outlined"
-                            labelBackgroundColor: Theme.color.surfaceContainerLow
+                            labelBackgroundColor: Theme.skin.panel
                         }
 
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 44
-                            radius: 8
-                            color: Qt.rgba(Theme.color.tertiary.r, Theme.color.tertiary.g,
-                                           Theme.color.tertiary.b, 0.10)
+                            radius: Theme.skin.radiusOverlay
+                            color: Qt.rgba(Theme.skin.info.r, Theme.skin.info.g,
+                                           Theme.skin.info.b, 0.10)
                             RowLayout {
                                 anchors.fill: parent
                                 anchors.leftMargin: 12
@@ -365,7 +364,7 @@ Item {
                                     text: "info"
                                     font.family: Theme.iconFont.name
                                     font.pixelSize: 16
-                                    color: Theme.color.tertiary
+                                    color: Theme.skin.info
                                 }
                                 Text {
                                     Layout.fillWidth: true
@@ -373,7 +372,7 @@ Item {
                                     text: "Passwords use tssh's encoding. It is obfuscation, not encryption — keep the file private."
                                     font.family: Theme.typography.labelSmall.family
                                     font.pixelSize: 10
-                                    color: Theme.color.onSurfaceVariantColor
+                                    color: Theme.skin.inkDim
                                 }
                             }
                         }
@@ -384,7 +383,7 @@ Item {
                             text: "Advanced"
                             font.family: Theme.typography.labelLarge.family
                             font.pixelSize: 12
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
 
                         RowLayout {
@@ -397,7 +396,7 @@ Item {
                                 label: "ProxyJump"
                                 placeholderText: "bastion"
                                 type: "outlined"
-                                labelBackgroundColor: Theme.color.surfaceContainerLow
+                                labelBackgroundColor: Theme.skin.panel
                             }
                             TextField {
                                 id: fieldCommand
@@ -406,7 +405,7 @@ Item {
                                 label: "ProxyCommand"
                                 placeholderText: "ssh -W %h:%p proxy"
                                 type: "outlined"
-                                labelBackgroundColor: Theme.color.surfaceContainerLow
+                                labelBackgroundColor: Theme.skin.panel
                             }
                         }
 
@@ -416,7 +415,7 @@ Item {
                             text: "Port forwarding"
                             font.family: Theme.typography.labelLarge.family
                             font.pixelSize: 12
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
 
                         Text {
@@ -426,7 +425,7 @@ Item {
                             text: "No rules of this host's own. Forwarding is only active while a session is open."
                             font.family: Theme.typography.bodySmall.family
                             font.pixelSize: 11
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                             opacity: 0.8
                         }
 
@@ -467,7 +466,7 @@ Item {
                                         Layout.minimumWidth: 0
                                         text: forwardRow.specText
                                         type: "outlined"
-                                        labelBackgroundColor: Theme.color.surfaceContainerLow
+                                        labelBackgroundColor: Theme.skin.panel
                                         placeholderText: forwardRow.modelData.kind === "D"
                                                          ? "1080" : "8080:localhost:80"
                                         onTextChanged: {
@@ -481,11 +480,11 @@ Item {
                                         Layout.preferredHeight: 28
                                         Rectangle {
                                             anchors.fill: parent
-                                            radius: 6
+                                            radius: Theme.skin.radiusControl
                                             color: removeHover.containsMouse
-                                                   ? Qt.rgba(Theme.color.error.r,
-                                                             Theme.color.error.g,
-                                                             Theme.color.error.b, 0.12)
+                                                   ? Qt.rgba(Theme.skin.danger.r,
+                                                             Theme.skin.danger.g,
+                                                             Theme.skin.danger.b, 0.12)
                                                    : "transparent"
                                         }
                                         Text {
@@ -493,7 +492,7 @@ Item {
                                             text: "close"
                                             font.family: Theme.iconFont.name
                                             font.pixelSize: 15
-                                            color: Theme.color.error
+                                            color: Theme.skin.danger
                                         }
                                         MouseArea {
                                             id: removeHover
@@ -516,8 +515,8 @@ Item {
                                     font.pixelSize: 10
                                     color: App.forwardPreview(forwardRow.modelData.kind,
                                                               forwardRow.specText).valid
-                                           ? Theme.color.onSurfaceVariantColor
-                                           : Theme.color.error
+                                           ? Theme.skin.inkDim
+                                           : Theme.skin.danger
                                 }
                             }
                         }
@@ -546,7 +545,7 @@ Item {
                                     Layout.preferredWidth: 104
                                     font.family: Theme.typography.labelSmall.family
                                     font.pixelSize: 10
-                                    color: Theme.color.onSurfaceVariantColor
+                                    color: Theme.skin.inkDim
                                 }
                                 Text {
                                     Layout.fillWidth: true
@@ -554,13 +553,13 @@ Item {
                                     elide: Text.ElideMiddle
                                     font.family: Theme.typography.bodySmall.family
                                     font.pixelSize: 11
-                                    color: Theme.color.onSurfaceVariantColor
+                                    color: Theme.skin.inkDim
                                 }
                                 Text {
                                     text: modelData.source || ""
                                     font.family: Theme.typography.labelSmall.family
                                     font.pixelSize: 9
-                                    color: Theme.color.onSurfaceVariantColor
+                                    color: Theme.skin.inkDim
                                     opacity: 0.7
                                 }
                             }
@@ -573,7 +572,7 @@ Item {
                             text: "ClearAllForwardings is set for this host, so none of these rules is applied."
                             font.family: Theme.typography.labelSmall.family
                             font.pixelSize: 10
-                            color: Theme.color.tertiary
+                            color: Theme.skin.info
                         }
 
                         Text {
@@ -583,7 +582,7 @@ Item {
                             text: App.tunnelCommand(root.originalAlias)
                             font.family: Theme.typography.labelSmall.family
                             font.pixelSize: 9
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                             opacity: 0.6
                         }
 
@@ -616,7 +615,7 @@ Item {
                         text: "Raw block"
                         font.family: Theme.typography.titleMedium.family
                         font.pixelSize: 15
-                        color: Theme.color.onSurfaceColor
+                        color: Theme.skin.ink
                     }
                     Text {
                         Layout.fillWidth: true
@@ -624,16 +623,16 @@ Item {
                         text: "Edit the exact lines written to ~/.ssh/config. Must start with a Host line."
                         font.family: Theme.typography.bodySmall.family
                         font.pixelSize: 11
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                     }
 
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        radius: 10
-                        color: Theme.color.surfaceContainerLowest
+                        radius: Theme.skin.radiusOverlay
+                        color: Theme.skin.surface
                         border.width: 1
-                        border.color: Theme.color.outlineVariant
+                        border.color: Theme.skin.hairline
 
                         // A plain TextEdit inside a clipping Item, with the
                         // scroll offset applied to `y` by hand. The Flickable
@@ -664,9 +663,9 @@ Item {
                                 width: rawViewport.width - 12
                                 font.family: "Cascadia Mono"
                                 font.pixelSize: 12
-                                color: Theme.color.onSurfaceColor
-                                selectionColor: Theme.color.primary
-                                selectedTextColor: Theme.color.onPrimaryColor
+                                color: Theme.skin.ink
+                                selectionColor: Theme.skin.accent
+                                selectedTextColor: Theme.skin.inkOnAccent
                                 selectByMouse: true
                                 wrapMode: TextEdit.NoWrap
 
@@ -698,7 +697,7 @@ Item {
                                 x: rawViewport.width - 4
                                 width: 3
                                 radius: 2
-                                color: Theme.color.outline
+                                color: Theme.skin.hairline
                                 opacity: 0.5
                                 readonly property real ratio:
                                     rawViewport.height / Math.max(rawViewport.height,
@@ -729,10 +728,10 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: (root.statusError || root.statusOk) ? 40 : 0
                 visible: height > 0
-                color: root.statusError ? Qt.rgba(Theme.color.error.r, Theme.color.error.g,
-                                                   Theme.color.error.b, 0.12)
-                                        : Qt.rgba(Theme.color.primary.r, Theme.color.primary.g,
-                                                  Theme.color.primary.b, 0.10)
+                color: root.statusError ? Qt.rgba(Theme.skin.danger.r, Theme.skin.danger.g,
+                                                   Theme.skin.danger.b, 0.12)
+                                        : Qt.rgba(Theme.skin.accent.r, Theme.skin.accent.g,
+                                                  Theme.skin.accent.b, 0.10)
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 24
@@ -742,7 +741,7 @@ Item {
                         text: root.statusError ? "error" : "check_circle"
                         font.family: Theme.iconFont.name
                         font.pixelSize: 16
-                        color: root.statusError ? Theme.color.error : Theme.color.primary
+                        color: root.statusError ? Theme.skin.danger : Theme.skin.accent
                     }
                     Text {
                         Layout.fillWidth: true
@@ -750,7 +749,7 @@ Item {
                         text: root.statusError || root.statusOk
                         font.family: Theme.typography.bodySmall.family
                         font.pixelSize: 11
-                        color: root.statusError ? Theme.color.error : Theme.color.onSurfaceColor
+                        color: root.statusError ? Theme.skin.danger : Theme.skin.ink
                     }
                 }
             }
@@ -765,7 +764,7 @@ Item {
                     anchors.top: parent.top
                     width: parent.width
                     height: 1
-                    color: Theme.color.outlineVariant
+                    color: Theme.skin.hairline
                 }
 
                 RowLayout {

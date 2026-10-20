@@ -11,12 +11,12 @@ Item {
     property bool enabled: true
 
     // Layout configuration
-    property real horizontalPadding: type === "text" ? 12 : 24
+    property real horizontalPadding: type === "text" ? 10 : 14
     property real verticalPadding: 0
-    property real spacing: 8
+    property real spacing: 6
 
-    implicitWidth: Math.max((control.contentItem ? control.contentItem.implicitWidth : contentRow.width) + horizontalPadding * 2, 48)
-    implicitHeight: 40
+    implicitWidth: Math.max((control.contentItem ? control.contentItem.implicitWidth : contentRow.width) + horizontalPadding * 2, 32)
+    implicitHeight: Theme.skin.controlHeight
 
     // State
     property bool hovered: enabled && ripple.containsMouse
@@ -106,7 +106,7 @@ Item {
     Rectangle {
         id: shadowSource
         anchors.fill: parent
-        radius: _shape.cornerFull
+        radius: _shape.cornerControl
         color: containerColor
         visible: elevationLevel === 0 // Hide when elevated (MultiEffect renders it)
     }
@@ -137,7 +137,7 @@ Item {
         Rectangle {
             id: backgroundRect
             anchors.fill: parent
-            radius: _shape.cornerFull
+            radius: _shape.cornerControl
             color: "transparent" // Rendered by shadowSource/MultiEffect
             border.width: type === "outlined" ? 1 : 0
             border.color: type === "outlined" ? outlineColor : "transparent"
@@ -176,7 +176,7 @@ Item {
                 Text {
                     text: control.icon
                     font.family: Theme.iconFont.name
-                    font.pixelSize: 18
+                    font.pixelSize: 16
                     font.weight: Font.Normal
                     color: contentColor
                     visible: control.icon !== ""
@@ -187,7 +187,7 @@ Item {
                 Text {
                     text: control.text
                     font.family: _typography.labelLarge.family
-                    font.pixelSize: _typography.labelLarge.size
+                    font.pixelSize: 12
                     font.weight: _typography.labelLarge.weight
                     font.capitalization: Font.MixedCase
                     color: contentColor

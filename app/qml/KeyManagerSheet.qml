@@ -11,7 +11,6 @@ Item {
     id: root
     property var window
 
-    readonly property var c: Theme.color
 
     property var keys: []
     property var hosts: []
@@ -197,8 +196,8 @@ Item {
     Rectangle {
         id: scrim
         anchors.fill: parent
-        color: "#000000"
-        opacity: 0.42
+        color: Theme.skin.veil
+        opacity: 1
         visible: false
         z: 1300
         MouseArea {
@@ -215,10 +214,10 @@ Item {
         width: Math.min(720, root.width - 80)
         height: Math.min(620, root.height - 70)
         anchors.centerIn: parent
-        radius: 14
-        color: Theme.color.surfaceContainerLow
+        radius: Theme.skin.radiusOverlay
+        color: Theme.skin.panel
         border.width: 1
-        border.color: Theme.color.outlineVariant
+        border.color: Theme.skin.hairline
 
         ColumnLayout {
             anchors.fill: parent
@@ -239,45 +238,15 @@ Item {
                         text: "Keys"
                         font.family: Theme.typography.titleLarge.family
                         font.pixelSize: 18
-                        color: Theme.color.onSurfaceColor
+                        color: Theme.skin.ink
                     }
 
-                    Rectangle {
-                        Layout.preferredWidth: segRow.width + 8
-                        Layout.preferredHeight: 30
-                        radius: 15
-                        color: Theme.color.surfaceContainerHigh
-                        Row {
-                            id: segRow
-                            anchors.centerIn: parent
-                            Repeater {
-                                model: [{ t: "Identities", m: "keys" },
-                                        { t: "Known hosts", m: "known" }]
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    width: tabLabel.implicitWidth + 24
-                                    height: 26
-                                    radius: 13
-                                    color: root.mode === modelData.m ? Theme.color.primaryContainer
-                                                                    : "transparent"
-                                    Text {
-                                        id: tabLabel
-                                        anchors.centerIn: parent
-                                        text: modelData.t
-                                        font.family: Theme.typography.labelMedium.family
-                                        font.pixelSize: 11
-                                        color: root.mode === modelData.m
-                                               ? Theme.color.onPrimaryContainerColor
-                                               : Theme.color.onSurfaceVariantColor
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: root.mode = modelData.m
-                                    }
-                                }
-                            }
-                        }
+                    SegmentedButton {
+                        buttons: [
+                            { text: "Identities", selected: root.mode === "keys" },
+                            { text: "Known hosts", selected: root.mode === "known" }
+                        ]
+                        onClicked: (index) => root.mode = (index === 0 ? "keys" : "known")
                     }
 
                     Item { Layout.fillWidth: true }
@@ -301,7 +270,7 @@ Item {
                         Layout.preferredHeight: 30
                         Rectangle {
                             anchors.fill: parent
-                            radius: 6
+                            radius: Theme.skin.radiusControl
                             color: closeHover.containsMouse ? root.window.flatHover : "transparent"
                         }
                         Text {
@@ -309,7 +278,7 @@ Item {
                             text: "close"
                             font.family: Theme.iconFont.name
                             font.pixelSize: 17
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                         MouseArea {
                             id: closeHover
@@ -324,7 +293,7 @@ Item {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: 1
-                    color: Theme.color.outlineVariant
+                    color: Theme.skin.hairline
                 }
             }
 
@@ -342,8 +311,8 @@ Item {
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 32
-                        radius: 8
-                        color: Theme.color.surfaceContainerHigh
+                        radius: Theme.skin.radiusControl
+                        color: Theme.skin.surfaceWash
                         RowLayout {
                             anchors.fill: parent
                             anchors.leftMargin: 9
@@ -353,16 +322,16 @@ Item {
                                 text: "filter_alt"
                                 font.family: Theme.iconFont.name
                                 font.pixelSize: 15
-                                color: Theme.color.onSurfaceVariantColor
+                                color: Theme.skin.inkDim
                             }
                             TextInput {
                                 Layout.fillWidth: true
                                 verticalAlignment: TextInput.AlignVCenter
                                 font.family: Theme.typography.bodyMedium.family
                                 font.pixelSize: 12
-                                color: Theme.color.onSurfaceColor
-                                selectionColor: Theme.color.primary
-                                selectedTextColor: Theme.color.onPrimaryColor
+                                color: Theme.skin.ink
+                                selectionColor: Theme.skin.accent
+                                selectedTextColor: Theme.skin.inkOnAccent
                                 clip: true
                                 onTextChanged: root.query = text
                                 Text {
@@ -371,7 +340,7 @@ Item {
                                     visible: !parent.text
                                     text: "Filter by name, fingerprint or comment"
                                     font: parent.font
-                                    color: Theme.color.onSurfaceVariantColor
+                                    color: Theme.skin.inkDim
                                     opacity: 0.6
                                 }
                             }
@@ -392,8 +361,8 @@ Item {
                 Layout.preferredHeight: (root.statusError || root.statusOk) ? 34 : 0
                 visible: height > 0
                 color: root.statusError
-                       ? Qt.rgba(Theme.color.error.r, Theme.color.error.g, Theme.color.error.b, 0.12)
-                       : Qt.rgba(Theme.color.primary.r, Theme.color.primary.g, Theme.color.primary.b, 0.10)
+                       ? Qt.rgba(Theme.skin.danger.r, Theme.skin.danger.g, Theme.skin.danger.b, 0.12)
+                       : Qt.rgba(Theme.skin.accent.r, Theme.skin.accent.g, Theme.skin.accent.b, 0.10)
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 20
@@ -403,7 +372,7 @@ Item {
                         text: root.statusError ? "error" : "check_circle"
                         font.family: Theme.iconFont.name
                         font.pixelSize: 15
-                        color: root.statusError ? Theme.color.error : Theme.color.primary
+                        color: root.statusError ? Theme.skin.danger : Theme.skin.accent
                     }
                     Text {
                         Layout.fillWidth: true
@@ -411,7 +380,7 @@ Item {
                         text: root.statusError || root.statusOk
                         font.family: Theme.typography.bodySmall.family
                         font.pixelSize: 11
-                        color: root.statusError ? Theme.color.error : Theme.color.onSurfaceColor
+                        color: root.statusError ? Theme.skin.danger : Theme.skin.ink
                     }
                 }
             }
@@ -442,7 +411,7 @@ Item {
                               : "No key matches the filter."
                         font.family: Theme.typography.bodyMedium.family
                         font.pixelSize: 12
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                     }
 
                     Repeater {
@@ -454,8 +423,8 @@ Item {
 
                             Layout.fillWidth: true
                             Layout.preferredHeight: keyBody.height + 22
-                            radius: 10
-                            color: Theme.color.surfaceContainer
+                            radius: Theme.skin.radiusOverlay
+                            color: Theme.skin.panel
 
                             ColumnLayout {
                                 id: keyBody
@@ -473,13 +442,13 @@ Item {
                                         font.family: Theme.iconFont.name
                                         font.pixelSize: 16
                                         color: keyCard.modelData.private
-                                               ? Theme.color.primary : Theme.color.error
+                                               ? Theme.skin.accent : Theme.skin.danger
                                     }
                                     Text {
                                         text: keyCard.modelData.name
                                         font.family: Theme.typography.titleSmall.family
                                         font.pixelSize: 13
-                                        color: Theme.color.onSurfaceColor
+                                        color: Theme.skin.ink
                                     }
                                     Text {
                                         text: keyCard.modelData.type +
@@ -487,7 +456,7 @@ Item {
                                                ? " " + keyCard.modelData.bits + "-bit" : "")
                                         font.family: Theme.typography.labelSmall.family
                                         font.pixelSize: 10
-                                        color: Theme.color.onSurfaceVariantColor
+                                        color: Theme.skin.inkDim
                                     }
                                     Item { Layout.fillWidth: true }
                                     Text {
@@ -495,7 +464,7 @@ Item {
                                         text: "used by " + (keyCard.modelData.referencedBy || "")
                                         font.family: Theme.typography.labelSmall.family
                                         font.pixelSize: 10
-                                        color: Theme.color.onSurfaceVariantColor
+                                        color: Theme.skin.inkDim
                                         opacity: 0.8
                                     }
                                 }
@@ -507,7 +476,7 @@ Item {
                                     font.family: "Cascadia Mono"
                                     font.pixelSize: 10
                                     color: keyCard.modelData.fingerprint
-                                           ? Theme.color.onSurfaceVariantColor : Theme.color.error
+                                           ? Theme.skin.inkDim : Theme.skin.danger
                                 }
 
                                 RowLayout {
@@ -554,7 +523,7 @@ Item {
                               + "Deleting removes both halves; ssh then falls back to the next identity."
                         font.family: Theme.typography.bodySmall.family
                         font.pixelSize: 11
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                         opacity: 0.8
                     }
                 }
@@ -585,7 +554,7 @@ Item {
                               + "connect once and accept its fingerprint."
                         font.family: Theme.typography.bodyMedium.family
                         font.pixelSize: 12
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                     }
 
                     Repeater {
@@ -597,8 +566,8 @@ Item {
 
                             Layout.fillWidth: true
                             Layout.preferredHeight: 44
-                            radius: 8
-                            color: Theme.color.surfaceContainer
+                            radius: Theme.skin.radiusControl
+                            color: Theme.skin.panel
 
                             RowLayout {
                                 anchors.fill: parent
@@ -612,14 +581,14 @@ Item {
                                     elide: Text.ElideMiddle
                                     font.family: Theme.typography.bodyMedium.family
                                     font.pixelSize: 12
-                                    color: Theme.color.onSurfaceColor
+                                    color: Theme.skin.ink
                                 }
                                 Text {
                                     text: hostRow.modelData.type
                                     Layout.preferredWidth: 60
                                     font.family: Theme.typography.labelSmall.family
                                     font.pixelSize: 10
-                                    color: Theme.color.onSurfaceVariantColor
+                                    color: Theme.skin.inkDim
                                 }
                                 Text {
                                     Layout.fillWidth: true
@@ -627,7 +596,7 @@ Item {
                                     elide: Text.ElideMiddle
                                     font.family: "Cascadia Mono"
                                     font.pixelSize: 10
-                                    color: Theme.color.onSurfaceVariantColor
+                                    color: Theme.skin.inkDim
                                 }
                                 Button {
                                     text: "Forget"
@@ -649,7 +618,7 @@ Item {
                               + "entry keeps its own row per key, so there is nothing to show by name."
                         font.family: Theme.typography.bodySmall.family
                         font.pixelSize: 11
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                         opacity: 0.8
                     }
                 }
@@ -663,8 +632,8 @@ Item {
         anchors.fill: parent
         z: 1310
         visible: root.generateVisible
-        color: "#000000"
-        opacity: 0.35
+        color: Theme.skin.veil
+        opacity: 1
         MouseArea {
             anchors.fill: parent
             onClicked: root.generateVisible = false
@@ -678,10 +647,10 @@ Item {
         anchors.centerIn: parent
         width: Math.min(520, root.width - 100)
         height: generateColumn.height + 48
-        radius: 16
-        color: Theme.color.surfaceContainerHigh
+        radius: Theme.skin.radiusOverlay
+        color: Theme.skin.panel
         border.width: 1
-        border.color: Theme.color.outlineVariant
+        border.color: Theme.skin.hairline
 
         ColumnLayout {
             id: generateColumn
@@ -697,7 +666,7 @@ Item {
                 text: "New key"
                 font.family: Theme.typography.titleMedium.family
                 font.pixelSize: 15
-                color: Theme.color.onSurfaceColor
+                color: Theme.skin.ink
             }
 
             RowLayout {
@@ -708,7 +677,7 @@ Item {
                     label: "File name"
                     text: root.newName
                     type: "outlined"
-                    labelBackgroundColor: Theme.color.surfaceContainerHigh
+                    labelBackgroundColor: Theme.skin.panel
                     onTextChanged: root.newName = text
                 }
                 ComboBox {
@@ -724,7 +693,7 @@ Item {
                 label: "Comment"
                 placeholderText: "user@laptop (optional)"
                 type: "outlined"
-                labelBackgroundColor: Theme.color.surfaceContainerHigh
+                labelBackgroundColor: Theme.skin.panel
                 onTextChanged: root.newComment = text
             }
 
@@ -734,7 +703,7 @@ Item {
                 placeholderText: "leave empty for no passphrase"
                 isPassword: true
                 type: "outlined"
-                labelBackgroundColor: Theme.color.surfaceContainerHigh
+                labelBackgroundColor: Theme.skin.panel
                 onTextChanged: root.newPassphrase = text
             }
 
@@ -745,7 +714,7 @@ Item {
                 text: root.generatedPublic
                 font.family: "Cascadia Mono"
                 font.pixelSize: 10
-                color: Theme.color.onSurfaceVariantColor
+                color: Theme.skin.inkDim
             }
 
             RowLayout {
@@ -773,8 +742,8 @@ Item {
         anchors.fill: parent
         z: 1312
         visible: root.pushVisible
-        color: "#000000"
-        opacity: 0.35
+        color: Theme.skin.veil
+        opacity: 1
         MouseArea {
             anchors.fill: parent
             onClicked: root.pushVisible = false
@@ -788,10 +757,10 @@ Item {
         anchors.centerIn: parent
         width: Math.min(500, root.width - 100)
         height: pushColumn.height + 48
-        radius: 16
-        color: Theme.color.surfaceContainerHigh
+        radius: Theme.skin.radiusOverlay
+        color: Theme.skin.panel
         border.width: 1
-        border.color: Theme.color.outlineVariant
+        border.color: Theme.skin.hairline
 
         ColumnLayout {
             id: pushColumn
@@ -807,7 +776,7 @@ Item {
                 text: "Install the public key"
                 font.family: Theme.typography.titleMedium.family
                 font.pixelSize: 15
-                color: Theme.color.onSurfaceColor
+                color: Theme.skin.ink
             }
 
             Text {
@@ -817,7 +786,7 @@ Item {
                       + "so password or touch prompts stay visible."
                 font.family: Theme.typography.bodySmall.family
                 font.pixelSize: 11
-                color: Theme.color.onSurfaceVariantColor
+                color: Theme.skin.inkDim
             }
 
             ComboBox {
@@ -840,7 +809,7 @@ Item {
                 text: root.pushKeyText
                 font.family: "Cascadia Mono"
                 font.pixelSize: 9
-                color: Theme.color.onSurfaceVariantColor
+                color: Theme.skin.inkDim
                 opacity: 0.8
             }
 
@@ -891,8 +860,8 @@ Item {
         anchors.fill: parent
         z: 1314
         visible: root.scanVisible
-        color: "#000000"
-        opacity: 0.35
+        color: Theme.skin.veil
+        opacity: 1
         MouseArea {
             anchors.fill: parent
             onClicked: root.scanVisible = false
@@ -906,10 +875,10 @@ Item {
         anchors.centerIn: parent
         width: Math.min(560, root.width - 100)
         height: scanColumn.height + 48
-        radius: 16
-        color: Theme.color.surfaceContainerHigh
+        radius: Theme.skin.radiusOverlay
+        color: Theme.skin.panel
         border.width: 1
-        border.color: Theme.color.outlineVariant
+        border.color: Theme.skin.hairline
 
         ColumnLayout {
             id: scanColumn
@@ -925,7 +894,7 @@ Item {
                 text: "Trust a host"
                 font.family: Theme.typography.titleMedium.family
                 font.pixelSize: 15
-                color: Theme.color.onSurfaceColor
+                color: Theme.skin.ink
             }
 
             Text {
@@ -935,7 +904,7 @@ Item {
                       + "with one you trust before adding these keys."
                 font.family: Theme.typography.bodySmall.family
                 font.pixelSize: 11
-                color: Theme.color.onSurfaceVariantColor
+                color: Theme.skin.inkDim
             }
 
             RowLayout {
@@ -946,7 +915,7 @@ Item {
                     label: "Host or address"
                     placeholderText: "git.example.com"
                     type: "outlined"
-                    labelBackgroundColor: Theme.color.surfaceContainerHigh
+                    labelBackgroundColor: Theme.skin.panel
                     onTextChanged: root.scanHostName = text
                     Keys.onReturnPressed: root.submitScan()
                 }
@@ -967,7 +936,7 @@ Item {
                     elide: Text.ElideMiddle
                     font.family: "Cascadia Mono"
                     font.pixelSize: 10
-                    color: Theme.color.onSurfaceVariantColor
+                    color: Theme.skin.inkDim
                 }
             }
 

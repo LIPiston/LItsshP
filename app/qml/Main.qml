@@ -13,33 +13,43 @@ Window {
     minimumHeight: 540
     visible: true
     title: "LItsshP"
-    color: Theme.color.surface
+    // The window clears to the chrome colour and the content area paints the
+    // surface over it, so the two planes meet at a hairline instead of a gap.
+    color: Theme.skin.shell
 
-    // ── Flat design tokens ─────────────────────────────────────────────
-    // Termius-like flatness: no elevation, hairline separators, one accent.
+    // ── Design tokens ──────────────────────────────────────────────────
+    // The ladder comes from app/theme.py through Theme.skin, so QML and the
+    // terminal palette cannot drift apart. Pebrel's rules: one accent, a
+    // hairline instead of borders, an accent wash for selection, and a radius
+    // ladder of 4 chip / 6 control / 7 icon tile / 8 overlay / 14 launcher.
+    // The content card itself is flush (radius 0), separated from the sidebar
+    // by one hairline rather than by a gutter.
     readonly property var settings: App.settings
     readonly property string themeMode: settings.theme || "dark"
+    readonly property var skin: Theme.skin
 
-    readonly property color flatSurface: Theme.color.surface
-    readonly property color flatPanel: Theme.color.surfaceContainerLow
-    readonly property color flatPanelHigh: Theme.color.surfaceContainer
-    readonly property color flatHover: Qt.rgba(Theme.color.onSurfaceColor.r,
-                                               Theme.color.onSurfaceColor.g,
-                                               Theme.color.onSurfaceColor.b, 0.06)
-    readonly property color flatSelected: Qt.rgba(Theme.color.primary.r,
-                                                  Theme.color.primary.g,
-                                                  Theme.color.primary.b, 0.16)
-    readonly property color hairline: Theme.color.outlineVariant
-    readonly property color textPrimary: Theme.color.onSurfaceColor
-    readonly property color textSecondary: Theme.color.onSurfaceVariantColor
-    readonly property int radiusSmall: 6
-    readonly property int radiusMedium: 10
+    readonly property color flatSurface: skin.surface
+    readonly property color flatChrome: skin.shell
+    readonly property color flatPanel: skin.shell
+    readonly property color flatPanelHigh: skin.panel
+    readonly property color flatHover: skin.hover
+    readonly property color flatSelected: skin.accentSoft
+    readonly property color hairline: skin.hairline
+    readonly property color textPrimary: skin.ink
+    readonly property color textSecondary: skin.inkDim
+    readonly property color accent: skin.accent
+    readonly property int radiusSmall: skin.radiusControl
+    readonly property int radiusMedium: skin.radiusOverlay
+    readonly property int radiusCard: skin.radiusCard
+    readonly property int cardGutter: skin.gutter
+    readonly property int controlHeight: skin.controlHeight
 
     function applyTheme() {
         var dark = themeMode === "dark"
         if (themeMode === "system")
             dark = Qt.application.styleHints.colorScheme === Qt.ColorScheme.Dark
-        StyleManager.seedColor = settings.seedColor || "#6750a4"
+        StyleManager.themeFamily = settings.themeFamily || "catppuccin"
+        StyleManager.seedColor = settings.seedColor || ""
         StyleManager.isDarkTheme = dark
     }
 
@@ -49,6 +59,14 @@ Window {
         target: App
         function onSettingsChanged() { appWindow.applyTheme() }
         function onTerminalColorsChanged() { appWindow.applyTheme() }
+    }
+
+    // "System" follows the OS while the window is open, not only at launch.
+    Connections {
+        target: Qt.application.styleHints
+        function onColorSchemeChanged() {
+            if (appWindow.themeMode === "system") appWindow.applyTheme()
+        }
     }
 
     // ── Window glue exposed to the QML pages ───────────────────────────
@@ -99,6 +117,11 @@ Window {
     }
 
     // ── Sidebar | workspace ────────────────────────────────────────────
+    // ── Shell | content ────────────────────────────────────────────────
+    // Pebrel's preset geometry is *flush*: no gutter, no card radius, and one
+    // hairline between the sidebar and the terminal area. The window clears to
+    // the shell colour and the content area paints the surface colour, so the
+    // split reads as two planes meeting at a seam rather than a floating card.
     RowLayout {
         anchors.fill: parent
         spacing: 0
@@ -118,18 +141,27 @@ Window {
             onKeysRequested: appWindow.openKeys()
         }
 
+        // The seam. One hairline, the same token every other separator uses.
         Rectangle {
             visible: sidebar.visible
-            Layout.preferredWidth: 1
+            Layout.preferredWidth: skin.cardDivider
             Layout.fillHeight: true
-            color: appWindow.hairline
+            color: skin.hairline
         }
 
-        Workspace {
-            id: workspace
+        Rectangle {
+            id: contentCard
             Layout.fillWidth: true
             Layout.fillHeight: true
-            window: appWindow
+            radius: skin.radiusCard
+            color: skin.surface
+            clip: true
+
+            Workspace {
+                id: workspace
+                anchors.fill: parent
+                window: appWindow
+            }
         }
     }
 
@@ -263,19 +295,18 @@ Window {
 
         Rectangle {
             anchors.fill: parent
-            color: "#000000"
-            opacity: 0.4
+            color: appWindow.skin.veil
             MouseArea { anchors.fill: parent; onClicked: splitPicker.visible = false }
         }
 
         Rectangle {
             anchors.centerIn: parent
             width: Math.min(460, splitPicker.width - 100)
-            height: Math.min(420, 90 + splitModel.count * 40)
-            radius: 14
-            color: Theme.color.surfaceContainerHigh
+            height: Math.min(420, 84 + splitModel.count * 34)
+            radius: appWindow.skin.radiusOverlay
+            color: appWindow.skin.panel
             border.width: 1
-            border.color: Theme.color.outline
+            border.color: appWindow.skin.hairline
 
             ColumnLayout {
                 anchors.fill: parent
@@ -283,7 +314,7 @@ Window {
 
                 Item {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 48
+                    Layout.preferredHeight: 46
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 14
@@ -293,7 +324,7 @@ Window {
                             text: "vertical_split"
                             font.family: Theme.iconFont.name
                             font.pixelSize: 17
-                            color: Theme.color.onSurfaceVariantColor
+                            color: appWindow.skin.icon
                         }
                         TextInput {
                             id: splitFilter
@@ -301,9 +332,9 @@ Window {
                             verticalAlignment: TextInput.AlignVCenter
                             font.family: Theme.typography.bodyMedium.family
                             font.pixelSize: 13
-                            color: Theme.color.onSurfaceColor
-                            selectionColor: Theme.color.primary
-                            selectedTextColor: Theme.color.onPrimaryColor
+                            color: appWindow.skin.ink
+                            selectionColor: appWindow.skin.accent
+                            selectedTextColor: appWindow.skin.inkOnAccent
                             clip: true
                             onTextChanged: {
                                 splitPicker.splitQuery = text
@@ -317,8 +348,7 @@ Window {
                                 visible: !parent.text
                                 text: "Split with a tab or host…"
                                 font: parent.font
-                                color: Theme.color.onSurfaceVariantColor
-                                opacity: 0.6
+                                color: appWindow.skin.inkFaint
                             }
                         }
                     }
@@ -326,7 +356,7 @@ Window {
                         anchors.bottom: parent.bottom
                         width: parent.width
                         height: 1
-                        color: Theme.color.outlineVariant
+                        color: appWindow.skin.hairline
                     }
                 }
 
@@ -343,26 +373,26 @@ Window {
                         required property var modelData
                         required property int index
                         width: splitList.width
-                        height: 40
+                        height: 34
                         color: index === splitList.currentIndex
-                               ? Theme.color.primaryContainer : "transparent"
+                               ? appWindow.skin.accentSoft : "transparent"
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 16
-                            anchors.rightMargin: 16
-                            spacing: 10
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            spacing: 9
                             Text {
                                 text: modelData.kind === "tab" ? "tab" : "dns"
                                 font.family: Theme.iconFont.name
                                 font.pixelSize: 15
-                                color: Theme.color.onSurfaceVariantColor
+                                color: appWindow.skin.icon
                             }
                             Text {
                                 text: modelData.title
                                 font.family: Theme.typography.bodyMedium.family
                                 font.pixelSize: 12
-                                color: Theme.color.onSurfaceColor
+                                color: appWindow.skin.ink
                             }
                             Item { Layout.fillWidth: true }
                             Text {
@@ -370,7 +400,7 @@ Window {
                                 elide: Text.ElideMiddle
                                 font.family: Theme.typography.labelSmall.family
                                 font.pixelSize: 10
-                                color: Theme.color.onSurfaceVariantColor
+                                color: appWindow.skin.inkFaint
                             }
                         }
                         MouseArea {

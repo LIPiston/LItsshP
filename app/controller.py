@@ -25,7 +25,13 @@ DEFAULT_SETTINGS = {
     "fontFallback": "Microsoft YaHei",
     "fontSize": 14,
     "theme": "dark",          # dark | light | system
-    "seedColor": "#6750a4",
+    # Theme family (see app/theme.py). `theme` picks its light or dark member,
+    # so switching appearance keeps the family the user chose. Families come
+    # from the YAML catalog in the app data directory, not from ~/.ssh.
+    "themeFamily": "catppuccin",
+    # Optional accent override on top of the family accent. "" means "use the
+    # theme". Kept under the old key so existing state files still load.
+    "seedColor": "",
     "sidebarWidth": 268,
     "sidebarVisible": True,
     "confirmClose": True,
@@ -225,7 +231,7 @@ class AppController(QObject):
         if key == "copyOnSelect":
             for tab in self._tabs:
                 tab.model.setCopyOnSelect(value is not False)
-        if key in ("theme", "seedColor", "terminalTheme"):
+        if key in ("theme", "themeFamily", "seedColor", "terminalTheme"):
             self.terminalColorsChanged.emit()
             self.refreshTerminalThemes()
 

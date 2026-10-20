@@ -30,8 +30,8 @@ Item {
 
     signal activated(int index)
 
-    implicitWidth: 240
-    implicitHeight: 56
+    implicitWidth: 140
+    implicitHeight: 40
     
     // Theme
     property var _colors: Theme.color
@@ -71,7 +71,7 @@ Item {
     Rectangle {
         id: background
         anchors.fill: parent
-        radius: (control.type === "filled") ? _shape.cornerExtraSmall : _shape.cornerExtraSmall
+        radius: _shape.cornerControl
         
         color: (control.type === "filled") ? _colors.surfaceContainerHighest : "transparent"
         
@@ -122,8 +122,8 @@ Item {
     // Content Layout
     Item {
         anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
+        anchors.leftMargin: 12
+        anchors.rightMargin: 10
         
         // Leading Icon
         Text {
@@ -133,7 +133,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: control.leadingIcon
             font.family: Theme.iconFont.name
-            font.pixelSize: 24
+            font.pixelSize: 20
             color: control.enabled ? _colors.onSurfaceVariantColor : _colors.onSurfaceColor
             opacity: control.enabled ? 1 : 0.38
         }
@@ -156,12 +156,12 @@ Item {
             property real floatedX: 0
             
             x: control._actuallyFloated ? floatedX : restingX
-            y: control._actuallyFloated ? (control.type === "filled" ? 8 : -10) : (control.height - height) / 2
-            scale: control._actuallyFloated ? 0.75 : 1.0
+            y: control._actuallyFloated ? (control.type === "filled" ? 4 : -8) : (control.height - height) / 2
+            scale: control._actuallyFloated ? 0.72 : 1.0
             transformOrigin: Item.TopLeft
             
             font.family: _typography.bodyLarge.family
-            font.pixelSize: _typography.bodyLarge.size
+            font.pixelSize: 13
             color: control.isFocused ? _colors.primary : _colors.onSurfaceVariantColor
             
             Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
@@ -187,13 +187,13 @@ Item {
             anchors.left: parent.left
             anchors.leftMargin: iconDisplay.visible ? (iconDisplay.width + 16) : 0
             anchors.right: trailingIconDisplay.left
-            anchors.rightMargin: 16
+            anchors.rightMargin: 10
             anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: (control.type === "filled" && control._actuallyFloated) ? 8 : 0 
+            anchors.verticalCenterOffset: (control.type === "filled" && control._actuallyFloated) ? 7 : 0 
             
             text: control.currentText
             font.family: _typography.bodyLarge.family
-            font.pixelSize: _typography.bodyLarge.size
+            font.pixelSize: 12
             color: control.enabled ? _colors.onSurfaceColor : _colors.onSurfaceColor
             opacity: control.enabled ? 1 : 0.38
             elide: Text.ElideRight
@@ -206,7 +206,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: control.trailingIcon
             font.family: Theme.iconFont.name
-            font.pixelSize: 24
+            font.pixelSize: 20
             color: control.enabled ? _colors.onSurfaceVariantColor : _colors.onSurfaceColor
             opacity: control.enabled ? 1 : 0.38
             

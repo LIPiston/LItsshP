@@ -93,7 +93,7 @@ Item {
                 id: shadowSource
                 anchors.fill: parent
                 radius: menuBackground.radius
-                color: _colors.surfaceContainer
+                color: _colors.surfaceContainerHigh
                 visible: false
             }
             
@@ -103,9 +103,9 @@ Item {
                 anchors.fill: shadowSource
                 shadowEnabled: true
                 shadowColor: _colors.shadow
-                shadowBlur: _elevation.level2 * 0.5
-                shadowVerticalOffset: _elevation.level2
-                shadowOpacity: 0.2
+                shadowBlur: 12
+                shadowVerticalOffset: 4
+                shadowOpacity: 0.22
                 z: 0
                 // Opacity is inherited from parent (popupContainer), no need to double apply
             }
@@ -115,8 +115,8 @@ Item {
                 id: menuBackground
                 z: 1
                 anchors.fill: parent
-                color: _colors.surfaceContainer
-                radius: _shape.cornerExtraSmall
+                color: _colors.surfaceContainerHigh
+                radius: _shape.cornerOverlay
                 clip: true
                 
                 ColumnLayout {
@@ -161,13 +161,13 @@ Item {
         id: separatorComponent
         Item {
             implicitWidth: 112
-            implicitHeight: 17 // 1px + 16dp padding
+            implicitHeight: 9 // 1px + 8dp padding
             Layout.fillWidth: true
             Rectangle {
                 anchors.centerIn: parent
                 width: parent.width
                 height: 1
-                color: _colors.outlineVariant
+                color: Theme.skin.hairline
             }
         }
     }
@@ -177,7 +177,7 @@ Item {
         Item {
             id: menuItem
             implicitWidth: Math.max(112, row.implicitWidth + 24)
-            implicitHeight: 48
+            implicitHeight: 34
             Layout.fillWidth: true
             
             property bool itemEnabled: itemData.enabled !== undefined ? itemData.enabled : true
@@ -231,16 +231,16 @@ Item {
             RowLayout {
                 id: row
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
-                spacing: 12
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 9
                 
                 // Icon
                 Text {
                     visible: !!itemData.icon
                     text: itemData.icon || ""
                     font.family: Theme.iconFont.name
-                    font.pixelSize: 24
+                    font.pixelSize: 17
                     color: _colors.onSurfaceColor
                     opacity: itemEnabled ? 1 : 0.38
                     Layout.alignment: Qt.AlignVCenter
@@ -250,7 +250,7 @@ Item {
                 Text {
                     text: itemData.text || ""
                     font.family: _typography.labelLarge.family
-                    font.pixelSize: _typography.labelLarge.size
+                    font.pixelSize: 12
                     font.weight: _typography.labelLarge.weight
                     color: _colors.onSurfaceColor
                     opacity: itemEnabled ? 1 : 0.38
@@ -265,7 +265,7 @@ Item {
                     visible: !!itemData.trailingText
                     text: itemData.trailingText || ""
                     font.family: _typography.labelLarge.family
-                    font.pixelSize: _typography.labelLarge.size
+                    font.pixelSize: 11
                     font.weight: _typography.labelLarge.weight
                     color: _colors.onSurfaceColor
                     opacity: itemEnabled ? 1 : 0.38
@@ -278,7 +278,7 @@ Item {
                     visible: !!itemData.trailingIcon || hasSubMenu
                     text: hasSubMenu ? "arrow_right" : (itemData.trailingIcon || "")
                     font.family: Theme.iconFont.name
-                    font.pixelSize: 24
+                    font.pixelSize: 16
                     color: _colors.onSurfaceVariantColor
                     opacity: itemEnabled ? 1 : 0.38
                     Layout.alignment: Qt.AlignVCenter

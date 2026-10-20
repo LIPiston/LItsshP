@@ -13,11 +13,12 @@ Item {
     readonly property var settings: App.settings
     readonly property var fonts: App.availableFonts()
     readonly property var fallbacks: App.fallbackFonts()
-
+    // The first problem from the last theme reload; shown under the picker so
+    // a broken YAML file is visible instead of silently ignored.
+    property string themeError: ""
     function open() {
         scrim.visible = true
         panel.opacity = 1
-        Qt.callLater(function() { seedField.forceActiveFocus() })
     }
 
     function close() {
@@ -27,8 +28,8 @@ Item {
     Rectangle {
         id: scrim
         anchors.fill: parent
-        color: "#000000"
-        opacity: 0.45
+        color: Theme.skin.veil
+        opacity: 1
         visible: false
         z: 1100
         MouseArea {
@@ -43,10 +44,10 @@ Item {
         width: Math.min(560, root.width - 80)
         height: Math.min(600, root.height - 80)
         anchors.centerIn: parent
-        radius: 14
-        color: Theme.color.surfaceContainerLow
+        radius: Theme.skin.radiusOverlay
+        color: Theme.skin.panel
         border.width: 1
-        border.color: Theme.color.outlineVariant
+        border.color: Theme.skin.hairline
         visible: scrim.visible
 
         ColumnLayout {
@@ -65,7 +66,7 @@ Item {
                         text: "Settings"
                         font.family: Theme.typography.titleLarge.family
                         font.pixelSize: 18
-                        color: Theme.color.onSurfaceColor
+                        color: Theme.skin.ink
                     }
                     Item { Layout.fillWidth: true }
                     Item {
@@ -73,15 +74,15 @@ Item {
                         Layout.preferredHeight: 30
                         Rectangle {
                             anchors.fill: parent
-                            radius: 6
-                            color: closeHover.containsMouse ? root.window.flatHover : "transparent"
+                            radius: Theme.skin.radiusControl
+                            color: closeHover.containsMouse ? Theme.skin.hover : "transparent"
                         }
                         Text {
                             anchors.centerIn: parent
                             text: "close"
                             font.family: Theme.iconFont.name
                             font.pixelSize: 17
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                         MouseArea {
                             id: closeHover
@@ -96,7 +97,7 @@ Item {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: 1
-                    color: Theme.color.outlineVariant
+                    color: Theme.skin.hairline
                 }
             }
 
@@ -135,50 +136,195 @@ Item {
                     }
 
                     Text {
-                        Layout.topMargin: 10
-                        text: "Accent colour"
+                        Layout.topMargin: 12
+                        text: "Theme"
                         font.family: Theme.typography.labelMedium.family
                         font.pixelSize: 12
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                        text: "Each family has a dark and a light member; Dark/Light above picks which one you get. "
+                              + "Themes are YAML files you can edit — open the folder, change a colour, then Reload."
+                        font.family: Theme.typography.bodySmall.family
+                        font.pixelSize: 10
+                        color: Theme.skin.inkFaint
+                    }
+
+                    // Swatch rows: each family's own shell/surface/accent, painted
+                    // from the real palette so the preview cannot drift from what
+                    // the theme actually looks like. The model comes from
+                    // StyleManager.families, which resolves the same palettes the
+                    // app applies.
+                    Grid {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 2
+                        columns: 2
+                        rowSpacing: 8
+                        columnSpacing: 8
+
+                        Repeater {
+                            model: StyleManager.families
+                            delegate: Item {
+                                id: familySwatch
+                                required property var modelData
+                                property bool active: (root.settings.themeFamily || "catppuccin") === modelData.id
+
+                                width: Math.floor((content.width - 8) / 2)
+                                height: 52
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: Theme.skin.radiusControl
+                                    color: familySwatch.modelData.shell
+                                    border.width: familySwatch.active ? 2 : 1
+                                    border.color: familySwatch.active
+                                                  ? familySwatch.modelData.accent
+                                                  : Theme.skin.hairline
+                                }
+
+                                // A miniature of the actual layout: shell strip,
+                                // content plane, accent mark.
+                                Rectangle {
+                                    x: 8
+                                    y: 8
+                                    width: 26
+                                    height: parent.height - 16
+                                    radius: 2
+                                    color: familySwatch.modelData.surface
+                                }
+                                Rectangle {
+                                    x: 38
+                                    y: 8
+                                    width: parent.width - 46
+                                    height: 10
+                                    radius: 2
+                                    color: familySwatch.modelData.accent
+                                    opacity: 0.85
+                                }
+                                Rectangle {
+                                    x: 38
+                                    y: 22
+                                    width: parent.width - 58
+                                    height: 4
+                                    radius: 2
+                                    color: familySwatch.modelData.accent
+                                    opacity: 0.45
+                                }
+                                Rectangle {
+                                    x: 38
+                                    y: 30
+                                    width: parent.width - 68
+                                    height: 4
+                                    radius: 2
+                                    color: familySwatch.modelData.accent
+                                    opacity: 0.3
+                                }
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.bottom: parent.bottom
+                                    anchors.leftMargin: 8
+                                    anchors.bottomMargin: 1
+                                    text: familySwatch.modelData.label
+                                    font.family: Theme.typography.labelSmall.family
+                                    font.pixelSize: 9
+                                    color: familySwatch.modelData.accent
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: App.setSetting("themeFamily", familySwatch.modelData.id)
+                                }
+                            }
+                        }
+                    }
+
+                    // The catalog is a directory of YAML files, so the picker
+                    // needs an escape hatch: edit a file, then reload it without
+                    // restarting the app.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 2
+                        spacing: 8
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: StyleManager.themeDir
+                            elide: Text.ElideMiddle
+                            font.family: Theme.typography.bodySmall.family
+                            font.pixelSize: 10
+                            color: Theme.skin.inkFaint
+                        }
+                        Button {
+                            text: "Reload"
+                            type: "text"
+                            icon: "refresh"
+                            onClicked: {
+                                var problem = StyleManager.reloadThemes()
+                                root.themeError = problem
+                                if (!problem) App.toast("Themes reloaded")
+                            }
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        visible: root.themeError !== ""
+                        wrapMode: Text.Wrap
+                        text: root.themeError
+                        font.family: Theme.typography.bodySmall.family
+                        font.pixelSize: 10
+                        color: Theme.skin.danger
+                    }
+
+                    Text {
+                        Layout.topMargin: 8
+                        text: "Accent override"
+                        font.family: Theme.typography.labelMedium.family
+                        font.pixelSize: 12
+                        color: Theme.skin.inkDim
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                        text: "Leave empty to use the theme's own accent."
+                        font.family: Theme.typography.bodySmall.family
+                        font.pixelSize: 10
+                        color: Theme.skin.inkFaint
                     }
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 10
-
-                        Repeater {
-                            model: ["#6750a4", "#006a6a", "#7d5260", "#3f6212", "#8b5000", "#0061a4", "#984061"]
-                            delegate: Rectangle {
-                                required property string modelData
-                                Layout.preferredWidth: 30
-                                Layout.preferredHeight: 30
-                                radius: 15
-                                color: modelData
-                                border.width: root.settings.seedColor === modelData ? 3 : 1
-                                border.color: root.settings.seedColor === modelData
-                                              ? Theme.color.onSurfaceColor : Theme.color.outlineVariant
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: App.setSetting("seedColor", modelData)
-                                }
-                            }
-                        }
+                        spacing: 8
 
                         TextField {
                             id: seedField
-                            Layout.preferredWidth: 130
+                            Layout.preferredWidth: 120
                             label: "Hex"
+                            placeholderText: "#88c0d0"
                             text: root.settings.seedColor
                             type: "outlined"
-                            labelBackgroundColor: Theme.color.surfaceContainerLow
+                            labelBackgroundColor: Theme.skin.panel
                             onAccepted: {
-                                if (/^#[0-9a-fA-F]{6}$/.test(text))
+                                if (text === "" || /^#[0-9a-fA-F]{6}$/.test(text))
                                     App.setSetting("seedColor", text)
                             }
                             onEditingFinished: {
-                                if (/^#[0-9a-fA-F]{6}$/.test(text))
+                                if (text === "" || /^#[0-9a-fA-F]{6}$/.test(text))
                                     App.setSetting("seedColor", text)
+                            }
+                        }
+
+                        Button {
+                            text: "Use theme accent"
+                            type: "text"
+                            visible: (root.settings.seedColor || "") !== ""
+                            onClicked: {
+                                seedField.text = ""
+                                App.setSetting("seedColor", "")
                             }
                         }
 
@@ -190,7 +336,7 @@ Item {
                         text: "Terminal theme"
                         font.family: Theme.typography.labelMedium.family
                         font.pixelSize: 12
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                     }
                     SegmentedButton {
                         buttons: [
@@ -205,7 +351,7 @@ Item {
                         text: "Font"
                         font.family: Theme.typography.labelMedium.family
                         font.pixelSize: 12
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                     }
                     Row {
                         Layout.fillWidth: true
@@ -217,7 +363,7 @@ Item {
                             model: root.fonts
                             type: "outlined"
                             label: "Family"
-                            labelBackgroundColor: Theme.color.surfaceContainerLow
+                            labelBackgroundColor: Theme.skin.panel
                             currentIndex: Math.max(0, root.fonts.indexOf(root.settings.fontFamily))
                             onActivated: (index) => App.setSetting("fontFamily", model[index])
                         }
@@ -229,10 +375,10 @@ Item {
 
                             Rectangle {
                                 anchors.fill: parent
-                                radius: 6
+                                radius: Theme.skin.radiusControl
                                 color: "transparent"
                                 border.width: 1
-                                border.color: Theme.color.outline
+                                border.color: Theme.skin.icon
                             }
                             Row {
                                 anchors.centerIn: parent
@@ -248,7 +394,7 @@ Item {
                                     text: root.settings.fontSize
                                     font.family: Theme.typography.bodyLarge.family
                                     font.pixelSize: 14
-                                    color: Theme.color.onSurfaceColor
+                                    color: Theme.skin.ink
                                 }
                                 StepperButton {
                                     symbol: "add"
@@ -266,7 +412,7 @@ Item {
                         model: ["None (system fallback)"].concat(root.fallbacks)
                         type: "outlined"
                         label: "Fallback for missing glyphs"
-                        labelBackgroundColor: Theme.color.surfaceContainerLow
+                        labelBackgroundColor: Theme.skin.panel
                         currentIndex: {
                             var chosen = root.settings.fontFallback || ""
                             var at = root.fallbacks.indexOf(chosen)
@@ -283,7 +429,7 @@ Item {
                               + "comes from the primary font."
                         font.family: Theme.typography.bodySmall.family
                         font.pixelSize: 11
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                         opacity: 0.8
                     }
 
@@ -324,7 +470,7 @@ Item {
                             elide: Text.ElideMiddle
                             font.family: Theme.typography.bodySmall.family
                             font.pixelSize: 11
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                         Button {
                             text: "Open folder"
@@ -339,7 +485,7 @@ Item {
                         text: "Keep-alive interval"
                         font.family: Theme.typography.labelMedium.family
                         font.pixelSize: 12
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                     }
                     Text {
                         Layout.fillWidth: true
@@ -348,7 +494,7 @@ Item {
                               + "ServerAliveInterval only when the host does not set it."
                         font.family: Theme.typography.bodySmall.family
                         font.pixelSize: 11
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                         opacity: 0.85
                     }
                     RowLayout {
@@ -379,7 +525,7 @@ Item {
                             text: "SSH keys and trusted hosts in ~/.ssh"
                             font.family: Theme.typography.bodySmall.family
                             font.pixelSize: 12
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                         Button {
                             text: "Manage keys"
@@ -401,7 +547,7 @@ Item {
                             elide: Text.ElideMiddle
                             font.family: Theme.typography.bodySmall.family
                             font.pixelSize: 12
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                         Button {
                             text: "Open folder"
@@ -426,7 +572,7 @@ Item {
                         text: "LItsshP only reads and writes ~/.ssh/config. Passwords and other tssh options are left in tssh's own format, so the tssh CLI keeps working with the same file."
                         font.family: Theme.typography.bodySmall.family
                         font.pixelSize: 11
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                         opacity: 0.85
                     }
 
@@ -443,7 +589,7 @@ Item {
         font.family: Theme.typography.labelLarge.family
         font.pixelSize: 12
         font.weight: Font.Medium
-        color: Theme.color.primary
+        color: Theme.skin.accent
     }
 
     component StepperButton: Item {
@@ -455,15 +601,15 @@ Item {
 
         Rectangle {
             anchors.fill: parent
-            radius: 6
-            color: sbMouse.containsMouse ? root.window.flatHover : "transparent"
+            radius: Theme.skin.radiusControl
+            color: sbMouse.containsMouse ? Theme.skin.hover : "transparent"
         }
         Text {
             anchors.centerIn: parent
             text: sb.symbol
             font.family: Theme.iconFont.name
             font.pixelSize: 15
-            color: Theme.color.onSurfaceVariantColor
+            color: Theme.skin.inkDim
         }
         MouseArea {
             id: sbMouse
@@ -491,7 +637,7 @@ Item {
                 wrapMode: Text.Wrap
                 font.family: Theme.typography.bodyMedium.family
                 font.pixelSize: 13
-                color: Theme.color.onSurfaceColor
+                color: Theme.skin.ink
             }
             Switch {
                 checked: ss.checked

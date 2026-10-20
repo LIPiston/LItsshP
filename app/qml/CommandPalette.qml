@@ -14,6 +14,8 @@ Item {
     signal actionChosen(string action)
     signal snippetChosen(string name, string command)
 
+    readonly property var skin: Theme.skin
+
     readonly property var actions: [
         { kind: "action", id: "new-host", title: "New host", icon: "add" },
         { kind: "action", id: "settings", title: "Open settings", icon: "settings" },
@@ -99,8 +101,8 @@ Item {
     Rectangle {
         id: scrim
         anchors.fill: parent
-        color: "#000000"
-        opacity: 0.42
+        color: Theme.skin.veil
+        opacity: 1
         visible: false
         z: 1200
         MouseArea {
@@ -113,14 +115,14 @@ Item {
         id: box
         z: 1201
         visible: scrim.visible
-        width: Math.min(620, root.width - 100)
-        height: Math.min(430, 90 + model.count * 44 + 16)
+        width: Math.min(560, root.width - 100)
+        height: Math.min(400, 84 + model.count * 34 + 12)
         anchors.horizontalCenter: parent.horizontalCenter
         y: Math.max(60, root.height * 0.16)
-        radius: 14
-        color: Theme.color.surfaceContainerHigh
+        radius: skin.radiusOverlay
+        color: skin.panel
         border.width: 1
-        border.color: Theme.color.outline
+        border.color: skin.hairline
 
         ColumnLayout {
             anchors.fill: parent
@@ -129,19 +131,19 @@ Item {
             // Search row
             Item {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 54
+                Layout.preferredHeight: 46
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    spacing: 10
+                    anchors.leftMargin: 14
+                    anchors.rightMargin: 14
+                    spacing: 9
 
                     Text {
                         text: "search"
                         font.family: Theme.iconFont.name
-                        font.pixelSize: 19
-                        color: Theme.color.onSurfaceVariantColor
+                        font.pixelSize: 17
+                        color: skin.icon
                     }
 
                     TextInput {
@@ -149,10 +151,10 @@ Item {
                         Layout.fillWidth: true
                         verticalAlignment: TextInput.AlignVCenter
                         font.family: Theme.typography.bodyLarge.family
-                        font.pixelSize: 15
-                        color: Theme.color.onSurfaceColor
-                        selectionColor: Theme.color.primary
-                        selectedTextColor: Theme.color.onPrimaryColor
+                        font.pixelSize: 13
+                        color: skin.ink
+                        selectionColor: skin.accent
+                        selectedTextColor: skin.inkOnAccent
                         clip: true
                         onTextChanged: {
                             root.query = text
@@ -165,8 +167,7 @@ Item {
                             visible: !parent.text
                             text: "Search hosts and actions…"
                             font: parent.font
-                            color: Theme.color.onSurfaceVariantColor
-                            opacity: 0.6
+                            color: skin.inkFaint
                         }
 
                         Keys.onDownPressed: {
@@ -187,8 +188,7 @@ Item {
                         text: "esc"
                         font.family: Theme.typography.labelSmall.family
                         font.pixelSize: 10
-                        color: Theme.color.onSurfaceVariantColor
-                        opacity: 0.6
+                        color: skin.inkFaint
                     }
                 }
 
@@ -196,8 +196,7 @@ Item {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: 1
-                    color: Theme.color.outlineVariant
-                    opacity: 0.7
+                    color: skin.hairline
                 }
             }
 
@@ -217,35 +216,35 @@ Item {
                     required property var modelData
                     required property int index
                     width: resultList.width
-                    height: 42
+                    height: 34
 
                     Rectangle {
                         anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        radius: 8
-                        color: index === root.currentIndex ? Theme.color.primaryContainer : "transparent"
+                        anchors.leftMargin: 6
+                        anchors.rightMargin: 6
+                        radius: skin.radiusControl
+                        color: index === root.currentIndex ? skin.accentSoft
+                                                           : (rowHover.containsMouse ? skin.hover
+                                                                                     : "transparent")
                     }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 18
-                        anchors.rightMargin: 18
-                        spacing: 12
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        spacing: 9
 
                         Text {
                             text: modelData.icon
                             font.family: Theme.iconFont.name
                             font.pixelSize: 17
-                            color: index === root.currentIndex
-                                   ? Theme.color.onPrimaryContainerColor
-                                   : Theme.color.onSurfaceVariantColor
+                            color: index === root.currentIndex ? skin.accent : skin.icon
                         }
                         Text {
                             text: modelData.title
                             font.family: Theme.typography.bodyMedium.family
-                            font.pixelSize: 13
-                            color: Theme.color.onSurfaceColor
+                            font.pixelSize: 12
+                            color: root.currentIndex === index ? skin.inkStrong : skin.ink
                         }
                         Text {
                             Layout.fillWidth: true
@@ -254,11 +253,12 @@ Item {
                             horizontalAlignment: Text.AlignRight
                             font.family: Theme.typography.labelSmall.family
                             font.pixelSize: 10
-                            color: Theme.color.onSurfaceVariantColor
+                            color: skin.inkFaint
                         }
                     }
 
                     MouseArea {
+                        id: rowHover
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
@@ -275,8 +275,8 @@ Item {
                     anchors.centerIn: parent
                     text: "No matches"
                     font.family: Theme.typography.bodySmall.family
-                    font.pixelSize: 12
-                    color: Theme.color.onSurfaceVariantColor
+                    font.pixelSize: 11
+                    color: skin.inkFaint
                 }
             }
         }

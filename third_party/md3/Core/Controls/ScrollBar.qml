@@ -11,14 +11,14 @@ Rectangle {
     
     // Styling
     property color trackColor: "transparent"
-    property color thumbColor: Theme.color.outline
-    property color thumbPressedColor: Theme.color.primary
-    property real thumbOpacity: 0.8
+    property color thumbColor: Theme.skin.inkDim
+    property color thumbPressedColor: Theme.skin.accent
+    property real thumbOpacity: 0.55
     property real fadeDuration: 200
     
     // Dimensions
-    implicitWidth: orientation === Qt.Vertical ? (isPressed ? 4 : 8) : parent.width
-    implicitHeight: orientation === Qt.Vertical ? parent.height : (isPressed ? 4 : 8)
+    implicitWidth: orientation === Qt.Vertical ? (isPressed ? 3 : 6) : parent.width
+    implicitHeight: orientation === Qt.Vertical ? parent.height : (isPressed ? 3 : 6)
     
     // Visibility logic
     visible: target && (orientation === Qt.Vertical ? target.contentHeight > target.height : target.contentWidth > target.width)
@@ -40,8 +40,8 @@ Rectangle {
         x: orientation === Qt.Vertical ? (parent.width - width) / 2 : calculatePosition()
         y: orientation === Qt.Vertical ? calculatePosition() : (parent.height - height) / 2
         
-        width: orientation === Qt.Vertical ? (isPressed ? 4 : 6) : calculateSize()
-        height: orientation === Qt.Vertical ? calculateSize() : (isPressed ? 4 : 6)
+        width: orientation === Qt.Vertical ? (isPressed ? 3 : 5) : calculateSize()
+        height: orientation === Qt.Vertical ? calculateSize() : (isPressed ? 3 : 5)
         
         color: isPressed ? thumbPressedColor : thumbColor
         radius: (orientation === Qt.Vertical ? width : height) / 2

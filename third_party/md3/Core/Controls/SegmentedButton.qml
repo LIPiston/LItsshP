@@ -44,68 +44,49 @@ Item {
     }
 
     implicitWidth: row.implicitWidth
-    implicitHeight: 40
+    implicitHeight: 28
 
     // Content Clipping Container
     Rectangle {
         id: container
         anchors.fill: parent
-        radius: height / 2
+        radius: Theme.skin.radiusControl
         color: "transparent"
         clip: true
 
         RowLayout {
             id: row
             anchors.fill: parent
-            spacing: 0
+            spacing: 4
 
             Repeater {
                 model: control.buttons
                 delegate: Rectangle {
                     id: segment
                     Layout.fillHeight: true
-                    Layout.minimumWidth: 48
-                    implicitWidth: Math.max(contentRow.implicitWidth + 24, 48)
+                    Layout.minimumWidth: 36
+                    implicitWidth: Math.max(contentRow.implicitWidth + 20, 36)
                     
                     property bool isSelected: modelData.selected === true
                     property bool isSegmentEnabled: (modelData.enabled !== undefined ? modelData.enabled : true) && control.enabled
                     property bool isFirst: index === 0
                     property bool isLast: index === control.buttons.length - 1
-                    
-                    // Handle rounded corners for first and last items independently
-                    radius: (isFirst || isLast) ? height / 2 : 0
-                    
-                    color: isSelected && isSegmentEnabled ? Theme.color.secondaryContainer : "transparent"
 
-                    // Patch to make the inner side square for first item
-                    Rectangle {
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        width: parent.radius
-                        color: parent.color
-                        visible: segment.isFirst && !segment.isLast
-                    }
+                    // One rounded chip per segment rather than a fused pill:
+                    // Pebrel never merges controls into a single capsule, and
+                    // separate chips read as independent choices.
+                    radius: Theme.skin.radiusControl
 
-                    // Patch to make the inner side square for last item
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        width: parent.radius
-                        color: parent.color
-                        visible: segment.isLast && !segment.isFirst
-                    }
+                    color: isSelected && isSegmentEnabled ? Theme.skin.accentSoft
+                                                          : (segmentMouse.containsMouse
+                                                             ? Theme.skin.hover : "transparent")
 
-                    // Divider line (on the right, unless last)
-                    Rectangle {
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        width: 1
-                        color: !control.enabled ? control._getDisabledColor(Theme.color.onSurfaceColor, 0.12) : Theme.color.outline
-                        visible: index < control.buttons.length - 1
-                        z: 1
+                    MouseArea {
+                        id: segmentMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        enabled: segment.isSegmentEnabled
                     }
 
                     // Content
@@ -121,8 +102,8 @@ Item {
                             font.pixelSize: 18
                             color: {
                                 if (!segment.isSegmentEnabled) return control._getDisabledColor(Theme.color.onSurfaceColor, 0.38)
-                                if (segment.isSelected) return Theme.color.onSecondaryContainerColor
-                                return Theme.color.onSurfaceColor
+                                if (segment.isSelected) return Theme.skin.accent
+                                return Theme.skin.icon
                             }
                             visible: text !== ""
                             verticalAlignment: Text.AlignVCenter
@@ -132,12 +113,12 @@ Item {
                         Text {
                             text: modelData.text || ""
                             font.family: Theme.typography.labelLarge.family
-                            font.pixelSize: Theme.typography.labelLarge.size
+                            font.pixelSize: 11
                             font.weight: Theme.typography.labelLarge.weight
                             color: {
                                 if (!segment.isSegmentEnabled) return control._getDisabledColor(Theme.color.onSurfaceColor, 0.38)
-                                if (segment.isSelected) return Theme.color.onSecondaryContainerColor
-                                return Theme.color.onSurfaceColor
+                                if (segment.isSelected) return Theme.skin.inkStrong
+                                return Theme.skin.inkDim
                             }
                             visible: text !== ""
                             verticalAlignment: Text.AlignVCenter
@@ -152,25 +133,23 @@ Item {
                         enabled: segment.isSegmentEnabled
                         onClicked: (mouse) => control._handleClicked(index)
                         
-                        clipTopLeftRadius: segment.isFirst ? height / 2 : 0
-                        clipBottomLeftRadius: segment.isFirst ? height / 2 : 0
-                        clipTopRightRadius: segment.isLast ? height / 2 : 0
-                        clipBottomRightRadius: segment.isLast ? height / 2 : 0
+                        clipTopLeftRadius: Theme.skin.radiusControl
+                        clipBottomLeftRadius: Theme.skin.radiusControl
+                        clipTopRightRadius: Theme.skin.radiusControl
+                        clipBottomRightRadius: Theme.skin.radiusControl
                     }
                 }
             }
         }
     }
 
-    // Border Overlay
+    // No outline around the group: the chips are the controls, and a capsule
+    // border would fuse them back into one widget.
     Rectangle {
         id: borderOverlay
+        visible: false
         anchors.fill: parent
-        radius: height / 2
         color: "transparent"
-        border.width: 1
-        border.color: !control.enabled ? control._getDisabledColor(Theme.color.onSurfaceColor, 0.12) : Theme.color.outline
-        z: 2
     }
 }
 

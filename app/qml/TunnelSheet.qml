@@ -11,7 +11,6 @@ Item {
     id: root
     property var window
 
-    readonly property var c: Theme.color
     readonly property var tunnels: App.tunnels
 
     function open() {
@@ -32,9 +31,9 @@ Item {
     }
 
     function stateColor(state) {
-        if (state === "running" || state === "session") return c.primary
-        if (state === "failed") return c.error
-        return c.outline
+        if (state === "running" || state === "session") return Theme.skin.accent
+        if (state === "failed") return Theme.skin.danger
+        return Theme.skin.inkFaint
     }
 
     function canStop(state) {
@@ -53,8 +52,8 @@ Item {
     Rectangle {
         id: scrim
         anchors.fill: parent
-        color: "#000000"
-        opacity: 0.4
+        color: Theme.skin.veil
+        opacity: 1
         visible: false
         z: 1000
         MouseArea {
@@ -70,13 +69,13 @@ Item {
         width: Math.min(480, root.width - 60)
         height: root.height
         x: root.width - (scrim.visible ? sheet.width : 0)
-        color: Theme.color.surfaceContainerLow
+        color: Theme.skin.panel
 
         Rectangle {
             anchors.left: parent.left
             width: 1
             height: parent.height
-            color: Theme.color.outlineVariant
+            color: Theme.skin.hairline
         }
 
         ColumnLayout {
@@ -100,13 +99,13 @@ Item {
                             text: "Port forwarding"
                             font.family: Theme.typography.titleLarge.family
                             font.pixelSize: 19
-                            color: Theme.color.onSurfaceColor
+                            color: Theme.skin.ink
                         }
                         Text {
                             text: "Rules from ~/.ssh/config"
                             font.family: Theme.typography.labelSmall.family
                             font.pixelSize: 11
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                     }
 
@@ -127,7 +126,7 @@ Item {
                         Layout.preferredHeight: 32
                         Rectangle {
                             anchors.fill: parent
-                            radius: 6
+                            radius: Theme.skin.radiusControl
                             color: closeHover.containsMouse ? root.window.flatHover : "transparent"
                         }
                         Text {
@@ -135,7 +134,7 @@ Item {
                             text: "close"
                             font.family: Theme.iconFont.name
                             font.pixelSize: 17
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                         MouseArea {
                             id: closeHover
@@ -151,7 +150,7 @@ Item {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: 1
-                    color: Theme.color.outlineVariant
+                    color: Theme.skin.hairline
                 }
             }
 
@@ -181,7 +180,7 @@ Item {
                               + "in the host editor, then open that host."
                         font.family: Theme.typography.bodyMedium.family
                         font.pixelSize: 12
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                     }
 
                     Repeater {
@@ -194,10 +193,10 @@ Item {
 
                             Layout.fillWidth: true
                             Layout.preferredHeight: cardColumn.height + 24
-                            radius: 10
-                            color: Theme.color.surfaceContainer
+                            radius: Theme.skin.radiusOverlay
+                            color: Theme.skin.panel
                             border.width: modelData.state === "failed" ? 1 : 0
-                            border.color: c.error
+                            border.color: Theme.skin.danger
 
                             ColumnLayout {
                                 id: cardColumn
@@ -222,7 +221,7 @@ Item {
                                         text: card.modelData.alias
                                         font.family: Theme.typography.titleSmall.family
                                         font.pixelSize: 13
-                                        color: Theme.color.onSurfaceColor
+                                        color: Theme.skin.ink
                                     }
 
                                     Text {
@@ -256,7 +255,7 @@ Item {
                                             text: modelData.kindName
                                             font.family: Theme.typography.labelSmall.family
                                             font.pixelSize: 10
-                                            color: Theme.color.onSurfaceVariantColor
+                                            color: Theme.skin.inkDim
                                             Layout.preferredWidth: 52
                                         }
                                         Text {
@@ -265,14 +264,14 @@ Item {
                                             elide: Text.ElideMiddle
                                             font.family: Theme.typography.bodySmall.family
                                             font.pixelSize: 12
-                                            color: Theme.color.onSurfaceColor
+                                            color: Theme.skin.ink
                                         }
                                         Text {
                                             visible: !!modelData.source
                                             text: modelData.source
                                             font.family: Theme.typography.labelSmall.family
                                             font.pixelSize: 9
-                                            color: Theme.color.onSurfaceVariantColor
+                                            color: Theme.skin.inkDim
                                             opacity: 0.7
                                         }
                                     }
@@ -288,17 +287,17 @@ Item {
                                         width: 18
                                         height: 18
                                         radius: 3
-                                        color: card.modelData.persist ? Theme.color.primary : "transparent"
+                                        color: card.modelData.persist ? Theme.skin.accent : "transparent"
                                         border.width: 1
-                                        border.color: card.modelData.persist ? Theme.color.primary
-                                                                              : Theme.color.outline
+                                        border.color: card.modelData.persist ? Theme.skin.accent
+                                                                              : Theme.skin.hairline
                                         Text {
                                             anchors.centerIn: parent
                                             visible: card.modelData.persist
                                             text: "check"
                                             font.family: Theme.iconFont.name
                                             font.pixelSize: 12
-                                            color: Theme.color.onPrimaryColor
+                                            color: Theme.skin.inkOnAccent
                                         }
                                         MouseArea {
                                             anchors.fill: parent
@@ -314,7 +313,7 @@ Item {
                                         text: "Keep running after the session ends"
                                         font.family: Theme.typography.bodySmall.family
                                         font.pixelSize: 11
-                                        color: Theme.color.onSurfaceVariantColor
+                                        color: Theme.skin.inkDim
                                     }
 
                                     Text {
@@ -322,7 +321,7 @@ Item {
                                         text: root.elapsed(card.modelData.startedAt)
                                         font.family: Theme.typography.labelSmall.family
                                         font.pixelSize: 10
-                                        color: Theme.color.onSurfaceVariantColor
+                                        color: Theme.skin.inkDim
                                     }
                                 }
 
@@ -333,7 +332,7 @@ Item {
                                     text: card.modelData.error
                                     font.family: Theme.typography.labelSmall.family
                                     font.pixelSize: 10
-                                    color: c.error
+                                    color: Theme.skin.danger
                                 }
 
                                 Text {
@@ -342,7 +341,7 @@ Item {
                                     text: card.modelData.command
                                     font.family: Theme.typography.labelSmall.family
                                     font.pixelSize: 9
-                                    color: Theme.color.onSurfaceVariantColor
+                                    color: Theme.skin.inkDim
                                     opacity: 0.6
                                 }
                             }

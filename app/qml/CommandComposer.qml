@@ -60,13 +60,13 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: Theme.color.surfaceContainerLow
+        color: Theme.skin.shell
 
         Rectangle {
             anchors.top: parent.top
             width: parent.width
             height: 1
-            color: Theme.color.outlineVariant
+            color: Theme.skin.hairline
         }
     }
 
@@ -85,7 +85,7 @@ Item {
             text: "keyboard_return"
             font.family: Theme.iconFont.name
             font.pixelSize: 16
-            color: Theme.color.primary
+            color: Theme.skin.accent
             opacity: 0.85
         }
 
@@ -111,9 +111,9 @@ Item {
                 bottomPadding: 3
                 wrapMode: TextEdit.Wrap
                 selectByMouse: true
-                selectionColor: Theme.color.primary
-                selectedTextColor: Theme.color.onPrimaryColor
-                color: Theme.color.onSurfaceColor
+                selectionColor: Theme.skin.accent
+                selectedTextColor: Theme.skin.inkOnAccent
+                color: Theme.skin.ink
                 font.family: Theme.typography.bodyMedium.family
                 font.pixelSize: 13
                 enabled: root.enabled
@@ -132,7 +132,7 @@ Item {
                     visible: input.text.length === 0
                     text: "Type a command to send when you're ready…"
                     font: input.font
-                    color: Theme.color.onSurfaceVariantColor
+                    color: Theme.skin.inkDim
                     opacity: 0.65
                 }
 
@@ -181,7 +181,7 @@ Item {
             text: "Ctrl+Enter"
             font.family: Theme.typography.labelSmall.family
             font.pixelSize: 10
-            color: Theme.color.onSurfaceVariantColor
+            color: Theme.skin.inkDim
             opacity: 0.7
         }
 

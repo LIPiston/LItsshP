@@ -39,10 +39,10 @@ Item {
         anchors.top: parent.top
         anchors.rightMargin: 14
         anchors.topMargin: 8
-        radius: 10
-        color: Theme.color.surfaceContainerHigh
+        radius: Theme.skin.radiusOverlay
+        color: Theme.skin.surfaceWash
         border.width: 1
-        border.color: Theme.color.outlineVariant
+        border.color: Theme.skin.hairline
         clip: true
 
         // Swallow clicks so the scrim below does not close the panel.
@@ -74,7 +74,7 @@ Item {
                     font.family: Theme.typography.labelSmall.family
                     font.pixelSize: 9
                     font.weight: Font.DemiBold
-                    color: Theme.color.onSurfaceVariantColor
+                    color: Theme.skin.inkDim
                     opacity: 0.8
                 }
 
@@ -92,7 +92,7 @@ Item {
                                 text: "swap_vert"
                                 font.family: Theme.iconFont.name
                                 font.pixelSize: 13
-                                color: Theme.color.primary
+                                color: Theme.skin.accent
                             }
                             Text {
                                 Layout.fillWidth: true
@@ -100,13 +100,13 @@ Item {
                                 elide: Text.ElideRight
                                 font.family: Theme.typography.labelLarge.family
                                 font.pixelSize: 11
-                                color: Theme.color.onSurfaceColor
+                                color: Theme.skin.ink
                             }
                             Text {
                                 text: Math.round(modelData.fraction * 100) + "%"
                                 font.family: Theme.typography.labelSmall.family
                                 font.pixelSize: 10
-                                color: Theme.color.onSurfaceVariantColor
+                                color: Theme.skin.inkDim
                             }
                         }
 
@@ -114,12 +114,12 @@ Item {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 3
                             radius: 2
-                            color: Theme.color.surfaceContainerHighest
+                            color: Theme.skin.hover
                             Rectangle {
                                 width: parent.width * modelData.fraction
                                 height: parent.height
                                 radius: 2
-                                color: Theme.color.primary
+                                color: Theme.skin.accent
                             }
                         }
 
@@ -129,7 +129,7 @@ Item {
                             elide: Text.ElideRight
                             font.family: Theme.typography.labelSmall.family
                             font.pixelSize: 9
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                     }
                 }
@@ -140,7 +140,7 @@ Item {
                     Layout.bottomMargin: 4
                     height: 1
                     visible: root.active.length > 0 && root.history.length > 0
-                    color: Theme.color.outlineVariant
+                    color: Theme.skin.hairline
                 }
 
                 // ── History ────────────────────────────────────────────
@@ -153,7 +153,7 @@ Item {
                     font.family: Theme.typography.labelSmall.family
                     font.pixelSize: 9
                     font.weight: Font.DemiBold
-                    color: Theme.color.onSurfaceVariantColor
+                    color: Theme.skin.inkDim
                     opacity: 0.8
                 }
 
@@ -167,7 +167,7 @@ Item {
 
                         Rectangle {
                             anchors.fill: parent
-                            radius: 6
+                            radius: Theme.skin.radiusControl
                             color: histMouse.containsMouse ? root.window.flatHover : "transparent"
                         }
 
@@ -183,7 +183,7 @@ Item {
                                 font.family: Theme.iconFont.name
                                 font.pixelSize: 13
                                 color: histRow.modelData.status === "failed"
-                                       ? Theme.color.error : Theme.color.tertiary
+                                       ? Theme.skin.danger : Theme.skin.info
                             }
 
                             ColumnLayout {
@@ -195,7 +195,7 @@ Item {
                                     elide: Text.ElideRight
                                     font.family: Theme.typography.labelLarge.family
                                     font.pixelSize: 11
-                                    color: Theme.color.onSurfaceColor
+                                    color: Theme.skin.ink
                                 }
                                 Text {
                                     Layout.fillWidth: true
@@ -206,8 +206,8 @@ Item {
                                     font.family: Theme.typography.labelSmall.family
                                     font.pixelSize: 9
                                     color: histRow.modelData.status === "failed"
-                                           ? Theme.color.error
-                                           : Theme.color.onSurfaceVariantColor
+                                           ? Theme.skin.danger
+                                           : Theme.skin.inkDim
                                 }
                             }
 
@@ -215,7 +215,7 @@ Item {
                                 text: "chevron_right"
                                 font.family: Theme.iconFont.name
                                 font.pixelSize: 13
-                                color: Theme.color.onSurfaceVariantColor
+                                color: Theme.skin.inkDim
                                 opacity: 0.6
                             }
                         }
@@ -243,7 +243,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     font.family: Theme.typography.bodySmall.family
                     font.pixelSize: 11
-                    color: Theme.color.onSurfaceVariantColor
+                    color: Theme.skin.inkDim
                 }
             }
         }

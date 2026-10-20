@@ -64,20 +64,22 @@ Item {
     // Visuals
     Rectangle {
         id: background
-        width: label.implicitWidth + 16 // 8dp padding left/right
-        height: label.implicitHeight + 8 // 4dp padding top/bottom
-        color: _colors.inverseSurface
-        radius: 4 // MD3 Extra Small
-        opacity: 0.9
+        width: label.implicitWidth + 16
+        height: label.implicitHeight + 6
+        color: Theme.skin.panel
+        radius: Theme.skin.radiusChip
+        border.width: 1
+        border.color: Theme.skin.hairline
+        opacity: 1
         
         Text {
             id: label
             anchors.centerIn: parent
             text: control.text
             font.family: _typography.bodySmall.family
-            font.pixelSize: _typography.bodySmall.size
+            font.pixelSize: 10
             font.weight: _typography.bodySmall.weight
-            color: _colors.inverseOnSurface
+            color: Theme.skin.inkDim
             wrapMode: Text.Wrap
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter

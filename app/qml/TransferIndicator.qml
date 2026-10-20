@@ -28,10 +28,10 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 8
-        color: Theme.color.surfaceContainerHigh
+        radius: Theme.skin.radiusOverlay
+        color: Theme.skin.surfaceWash
         border.width: 1
-        border.color: Theme.color.outlineVariant
+        border.color: Theme.skin.hairline
 
         RowLayout {
             anchors.fill: parent
@@ -44,7 +44,7 @@ Item {
                       ? "download" : "upload"
                 font.family: Theme.iconFont.name
                 font.pixelSize: 15
-                color: Theme.color.primary
+                color: Theme.skin.accent
             }
 
             ColumnLayout {
@@ -63,14 +63,14 @@ Item {
                         elide: Text.ElideRight
                         font.family: Theme.typography.labelSmall.family
                         font.pixelSize: 10
-                        color: Theme.color.onSurfaceColor
+                        color: Theme.skin.ink
                     }
                     Text {
                         visible: root.extra > 0
                         text: "+" + root.extra
                         font.family: Theme.typography.labelSmall.family
                         font.pixelSize: 10
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                     }
                 }
 
@@ -79,13 +79,13 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 3
                     radius: 2
-                    color: Theme.color.surfaceContainerHighest
+                    color: Theme.skin.hover
 
                     Rectangle {
                         width: parent.width * (root.current ? root.current.fraction : 0)
                         height: parent.height
                         radius: parent.radius
-                        color: Theme.color.primary
+                        color: Theme.skin.accent
                     }
                 }
             }
@@ -94,7 +94,7 @@ Item {
                 text: root.current ? Math.round(root.current.fraction * 100) + "%" : ""
                 font.family: Theme.typography.labelSmall.family
                 font.pixelSize: 10
-                color: Theme.color.onSurfaceVariantColor
+                color: Theme.skin.inkDim
             }
         }
     }

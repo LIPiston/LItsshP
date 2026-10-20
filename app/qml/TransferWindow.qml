@@ -13,7 +13,6 @@ Window {
     property string alias: ""
     property var sftp: null
 
-    readonly property var c: Theme.color
     property string localPath: ""
     property string remotePath: ""
     property var localEntries: []
@@ -37,7 +36,7 @@ Window {
     minimumWidth: 760
     minimumHeight: 460
     title: alias ? "Transfer files · " + alias : "Transfer files"
-    color: Theme.color.surface
+    color: Theme.skin.surface
     visible: false
 
     // ── Selection helpers ──────────────────────────────────────────────
@@ -299,7 +298,7 @@ Window {
         anchors.right: parent.right
         anchors.top: parent.top
         height: 56
-        color: Theme.color.surface
+        color: Theme.skin.surface
 
         RowLayout {
             anchors.fill: parent
@@ -308,16 +307,16 @@ Window {
             spacing: 10
 
             Rectangle {
-                Layout.preferredWidth: 30
-                Layout.preferredHeight: 30
-                radius: 15
-                color: Theme.color.primaryContainer
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                radius: Theme.skin.radiusIconTile
+                color: Theme.skin.accentSoft
                 Text {
                     anchors.centerIn: parent
                     text: "swap_vert"
                     font.family: Theme.iconFont.name
                     font.pixelSize: 16
-                    color: Theme.color.onPrimaryContainerColor
+                    color: Theme.skin.accent
                 }
             }
 
@@ -327,13 +326,13 @@ Window {
                     text: "Transfer files"
                     font.family: Theme.typography.titleMedium.family
                     font.pixelSize: 15
-                    color: Theme.color.onSurfaceColor
+                    color: Theme.skin.ink
                 }
                 Text {
                     text: alias + " · SFTP"
                     font.family: Theme.typography.labelSmall.family
                     font.pixelSize: 10
-                    color: Theme.color.onSurfaceVariantColor
+                    color: Theme.skin.inkDim
                 }
             }
 
@@ -345,7 +344,7 @@ Window {
                 Layout.maximumWidth: 420
                 font.family: Theme.typography.labelSmall.family
                 font.pixelSize: 11
-                color: Theme.color.onSurfaceVariantColor
+                color: Theme.skin.inkDim
             }
 
             Item {
@@ -353,10 +352,10 @@ Window {
                 Layout.preferredHeight: 30
                 Rectangle {
                     anchors.fill: parent
-                    radius: 6
-                    color: closeHover.containsMouse ? Qt.rgba(Theme.color.onSurfaceColor.r,
-                                                              Theme.color.onSurfaceColor.g,
-                                                              Theme.color.onSurfaceColor.b, 0.06)
+                    radius: Theme.skin.radiusControl
+                    color: closeHover.containsMouse ? Qt.rgba(Theme.skin.ink.r,
+                                                              Theme.skin.ink.g,
+                                                              Theme.skin.ink.b, 0.06)
                                                     : "transparent"
                 }
                 Text {
@@ -364,7 +363,7 @@ Window {
                     text: "close"
                     font.family: Theme.iconFont.name
                     font.pixelSize: 17
-                    color: Theme.color.onSurfaceVariantColor
+                    color: Theme.skin.inkDim
                 }
                 MouseArea {
                     id: closeHover
@@ -380,7 +379,7 @@ Window {
             anchors.bottom: parent.bottom
             width: parent.width
             height: 1
-            color: Theme.color.outlineVariant
+            color: Theme.skin.hairline
         }
     }
 
@@ -416,7 +415,7 @@ Window {
         Rectangle {
             Layout.preferredWidth: 1
             Layout.fillHeight: true
-            color: Theme.color.outlineVariant
+            color: Theme.skin.hairline
         }
 
         FilePane {
@@ -449,13 +448,13 @@ Window {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: 62
-        color: Theme.color.surface
+        color: Theme.skin.surface
 
         Rectangle {
             anchors.top: parent.top
             width: parent.width
             height: 1
-            color: Theme.color.outlineVariant
+            color: Theme.skin.hairline
         }
 
         RowLayout {
@@ -474,13 +473,13 @@ Window {
                 Rectangle {
                     anchors.fill: parent
                     radius: 2
-                    color: Theme.color.surfaceContainerHighest
+                    color: Theme.skin.hover
                 }
                 Rectangle {
                     width: parent.width * Math.max(0, Math.min(1, transferWindow.progress))
                     height: parent.height
                     radius: 2
-                    color: Theme.color.primary
+                    color: Theme.skin.accent
                 }
             }
 
@@ -490,7 +489,7 @@ Window {
                 elide: Text.ElideRight
                 font.family: Theme.typography.labelSmall.family
                 font.pixelSize: 11
-                color: Theme.color.onSurfaceVariantColor
+                color: Theme.skin.inkDim
             }
 
             Button {
@@ -512,7 +511,7 @@ Window {
             Rectangle {
                 Layout.preferredWidth: 1
                 Layout.preferredHeight: 24
-                color: Theme.color.outlineVariant
+                color: Theme.skin.hairline
             }
             Button {
                 text: "New folder"
@@ -555,8 +554,8 @@ Window {
         anchors.fill: parent
         z: 500
         visible: transferWindow.promptVisible
-        color: "#000000"
-        opacity: 0.35
+        color: Theme.skin.veil
+        opacity: 1
         MouseArea {
             anchors.fill: parent
             onClicked: transferWindow.promptVisible = false
@@ -570,10 +569,10 @@ Window {
         anchors.centerIn: parent
         width: Math.min(420, transferWindow.width - 80)
         height: promptColumn.implicitHeight + 48
-        radius: 16
-        color: Theme.color.surfaceContainerHigh
+        radius: Theme.skin.radiusOverlay
+        color: Theme.skin.panel
         border.width: 1
-        border.color: Theme.color.outlineVariant
+        border.color: Theme.skin.hairline
 
         ColumnLayout {
             id: promptColumn
@@ -592,7 +591,7 @@ Window {
                 elide: Text.ElideMiddle
                 font.family: Theme.typography.titleMedium.family
                 font.pixelSize: 15
-                color: Theme.color.onSurfaceColor
+                color: Theme.skin.ink
             }
 
             TextField {
@@ -601,7 +600,7 @@ Window {
                 visible: transferWindow.promptMode !== "delete"
                 text: transferWindow.promptValue
                 type: "outlined"
-                labelBackgroundColor: Theme.color.surfaceContainerHigh
+                labelBackgroundColor: Theme.skin.panel
                 onTextChanged: transferWindow.promptValue = text
                 onAccepted: transferWindow.confirmPrompt()
             }
@@ -613,7 +612,7 @@ Window {
                 text: "This removes the selected items from the server and cannot be undone."
                 font.family: Theme.typography.bodySmall.family
                 font.pixelSize: 12
-                color: Theme.color.onSurfaceVariantColor
+                color: Theme.skin.inkDim
             }
 
             RowLayout {
@@ -672,14 +671,14 @@ Window {
                         font.family: Theme.typography.labelLarge.family
                         font.pixelSize: 12
                         font.weight: Font.Medium
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                     }
 
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 28
-                        radius: 6
-                        color: Theme.color.surfaceContainerHigh
+                        radius: Theme.skin.radiusControl
+                        color: Theme.skin.surfaceWash
 
                         RowLayout {
                             anchors.fill: parent
@@ -693,7 +692,7 @@ Window {
                                 elide: Text.ElideMiddle
                                 font.family: Theme.typography.labelSmall.family
                                 font.pixelSize: 11
-                                color: Theme.color.onSurfaceVariantColor
+                                color: Theme.skin.inkDim
                             }
 
                             Text {
@@ -701,7 +700,7 @@ Window {
                                 text: "progress_activity"
                                 font.family: Theme.iconFont.name
                                 font.pixelSize: 14
-                                color: Theme.color.primary
+                                color: Theme.skin.accent
                             }
                         }
                     }
@@ -712,10 +711,10 @@ Window {
                         Layout.preferredHeight: 28
                         Rectangle {
                             anchors.fill: parent
-                            radius: 6
-                            color: upHover.containsMouse ? Qt.rgba(Theme.color.onSurfaceColor.r,
-                                                                   Theme.color.onSurfaceColor.g,
-                                                                   Theme.color.onSurfaceColor.b, 0.06)
+                            radius: Theme.skin.radiusControl
+                            color: upHover.containsMouse ? Qt.rgba(Theme.skin.ink.r,
+                                                                   Theme.skin.ink.g,
+                                                                   Theme.skin.ink.b, 0.06)
                                                          : "transparent"
                         }
                         Text {
@@ -723,7 +722,7 @@ Window {
                             text: "arrow_upward"
                             font.family: Theme.iconFont.name
                             font.pixelSize: 15
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                         MouseArea {
                             id: upHover
@@ -739,7 +738,7 @@ Window {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: 1
-                    color: Theme.color.outlineVariant
+                    color: Theme.skin.hairline
                     opacity: 0.6
                 }
             }
@@ -762,12 +761,12 @@ Window {
 
                     width: paneList.width
                     height: 38
-                    color: selected ? Qt.rgba(Theme.color.primary.r, Theme.color.primary.g,
-                                              Theme.color.primary.b, 0.16)
+                    color: selected ? Qt.rgba(Theme.skin.accent.r, Theme.skin.accent.g,
+                                              Theme.skin.accent.b, 0.16)
                                     : (entryMouse.containsMouse
-                                       ? Qt.rgba(Theme.color.onSurfaceColor.r,
-                                                 Theme.color.onSurfaceColor.g,
-                                                 Theme.color.onSurfaceColor.b, 0.05)
+                                       ? Qt.rgba(Theme.skin.ink.r,
+                                                 Theme.skin.ink.g,
+                                                 Theme.skin.ink.b, 0.05)
                                        : "transparent")
 
                     RowLayout {
@@ -781,17 +780,17 @@ Window {
                             Layout.preferredWidth: 16
                             Layout.preferredHeight: 16
                             radius: 3
-                            color: entryRow.selected ? Theme.color.primary : "transparent"
+                            color: entryRow.selected ? Theme.skin.accent : "transparent"
                             border.width: 1
-                            border.color: entryRow.selected ? Theme.color.primary
-                                                            : Theme.color.outline
+                            border.color: entryRow.selected ? Theme.skin.accent
+                                                            : Theme.skin.hairline
                             Text {
                                 anchors.centerIn: parent
                                 visible: entryRow.selected
                                 text: "check"
                                 font.family: Theme.iconFont.name
                                 font.pixelSize: 11
-                                color: Theme.color.onPrimaryColor
+                                color: Theme.skin.inkOnAccent
                             }
                         }
 
@@ -799,8 +798,8 @@ Window {
                             text: modelData.isDir ? "folder" : "description"
                             font.family: Theme.iconFont.name
                             font.pixelSize: 17
-                            color: modelData.isDir ? Theme.color.tertiary
-                                                   : Theme.color.onSurfaceVariantColor
+                            color: modelData.isDir ? Theme.skin.info
+                                                   : Theme.skin.inkDim
                         }
 
                         Text {
@@ -809,7 +808,7 @@ Window {
                             elide: Text.ElideMiddle
                             font.family: Theme.typography.bodyMedium.family
                             font.pixelSize: 12
-                            color: Theme.color.onSurfaceColor
+                            color: Theme.skin.ink
                         }
 
                         Text {
@@ -817,7 +816,7 @@ Window {
                             text: formatSize(modelData.size)
                             font.family: Theme.typography.labelSmall.family
                             font.pixelSize: 10
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                     }
 
@@ -841,7 +840,7 @@ Window {
                 text: pane.remotePane ? "Empty folder" : "Empty folder"
                 font.family: Theme.typography.bodySmall.family
                 font.pixelSize: 11
-                color: Theme.color.onSurfaceVariantColor
+                color: Theme.skin.inkDim
                 opacity: 0.7
             }
         }

@@ -210,10 +210,10 @@ Item {
         anchors.margins: 10
         width: Math.min(420, parent.width - 20)
         height: 40
-        radius: 8
-        color: Theme.color.surfaceContainerHigh
+        radius: Theme.skin.radiusControl
+        color: Theme.skin.panel
         border.width: 1
-        border.color: Theme.color.outlineVariant
+        border.color: Theme.skin.hairline
         z: 20
 
         RowLayout {
@@ -226,7 +226,7 @@ Item {
                 text: "search"
                 font.family: Theme.iconFont.name
                 font.pixelSize: 16
-                color: Theme.color.onSurfaceVariantColor
+                color: Theme.skin.inkDim
             }
 
             TextInput {
@@ -235,9 +235,9 @@ Item {
                 verticalAlignment: TextInput.AlignVCenter
                 font.family: Theme.typography.bodyMedium.family
                 font.pixelSize: 13
-                color: Theme.color.onSurfaceColor
-                selectionColor: Theme.color.primary
-                selectedTextColor: Theme.color.onPrimaryColor
+                color: Theme.skin.ink
+                selectionColor: Theme.skin.accent
+                selectedTextColor: Theme.skin.inkOnAccent
                 clip: true
                 onTextChanged: if (root.model)
                                    root.model.setSearch(text, root.searchCaseSensitive)
@@ -257,7 +257,7 @@ Item {
                     visible: !parent.text
                     text: "Find in scrollback"
                     font: parent.font
-                    color: Theme.color.onSurfaceVariantColor
+                    color: Theme.skin.inkDim
                     opacity: 0.6
                 }
             }
@@ -270,7 +270,7 @@ Item {
                 font.family: Theme.typography.labelSmall.family
                 font.pixelSize: 10
                 color: root.model && root.model.searchCount > 0
-                       ? Theme.color.onSurfaceVariantColor : Theme.color.error
+                       ? Theme.skin.inkDim : Theme.skin.danger
             }
 
             // Match case. Toggling re-runs the query through the same setSearch
@@ -278,10 +278,10 @@ Item {
             Rectangle {
                 Layout.preferredWidth: 34
                 Layout.preferredHeight: 24
-                radius: 4
+                radius: Theme.skin.radiusChip
                 color: root.searchCaseSensitive
-                       ? Theme.color.secondaryContainer
-                       : (caseHover.containsMouse ? Theme.color.surfaceContainerHighest
+                       ? Theme.skin.surfaceWash
+                       : (caseHover.containsMouse ? Theme.skin.hover
                                                   : "transparent")
                 Text {
                     anchors.centerIn: parent
@@ -290,8 +290,8 @@ Item {
                     font.pixelSize: 11
                     font.weight: Font.DemiBold
                     color: root.searchCaseSensitive
-                           ? Theme.color.onSecondaryContainerColor
-                           : Theme.color.onSurfaceVariantColor
+                           ? Theme.skin.ink
+                           : Theme.skin.inkDim
                 }
                 MouseArea {
                     id: caseHover
@@ -315,8 +315,8 @@ Item {
                     text: "keyboard_arrow_up"
                     font.family: Theme.iconFont.name
                     font.pixelSize: 16
-                    color: prevHover.containsMouse ? Theme.color.onSurfaceColor
-                                                   : Theme.color.onSurfaceVariantColor
+                    color: prevHover.containsMouse ? Theme.skin.ink
+                                                   : Theme.skin.inkDim
                 }
                 MouseArea {
                     id: prevHover
@@ -334,8 +334,8 @@ Item {
                     text: "keyboard_arrow_down"
                     font.family: Theme.iconFont.name
                     font.pixelSize: 16
-                    color: nextHover.containsMouse ? Theme.color.onSurfaceColor
-                                                   : Theme.color.onSurfaceVariantColor
+                    color: nextHover.containsMouse ? Theme.skin.ink
+                                                   : Theme.skin.inkDim
                 }
                 MouseArea {
                     id: nextHover
@@ -353,8 +353,8 @@ Item {
                     text: "close"
                     font.family: Theme.iconFont.name
                     font.pixelSize: 15
-                    color: closeSearchHover.containsMouse ? Theme.color.onSurfaceColor
-                                                          : Theme.color.onSurfaceVariantColor
+                    color: closeSearchHover.containsMouse ? Theme.skin.ink
+                                                          : Theme.skin.inkDim
                 }
                 MouseArea {
                     id: closeSearchHover
@@ -371,8 +371,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         visible: root.isClosed
-        color: Qt.rgba(Theme.color.surface.r, Theme.color.surface.g,
-                       Theme.color.surface.b, 0.68)
+        color: Qt.rgba(Theme.skin.surface.r, Theme.skin.surface.g,
+                       Theme.skin.surface.b, 0.68)
 
         ColumnLayout {
             anchors.centerIn: parent
@@ -384,7 +384,7 @@ Item {
                 font.family: Theme.iconFont.name
                 font.pixelSize: 34
                 color: root.session && root.session.state === "failed"
-                       ? Theme.color.error : Theme.color.onSurfaceVariantColor
+                       ? Theme.skin.danger : Theme.skin.inkDim
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
@@ -394,7 +394,7 @@ Item {
                                            ? " · exit " + root.session.exitStatus : "")
                 font.family: Theme.typography.titleMedium.family
                 font.pixelSize: 15
-                color: Theme.color.onSurfaceColor
+                color: Theme.skin.ink
             }
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter

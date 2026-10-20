@@ -67,6 +67,58 @@ QtObject {
                         ? StyleManager.currentScheme 
                         : defaultScheme
 
+    // Pebrel-style chrome tokens: ink ladder, accent wash, hairline alpha and
+    // the radius/row-height ladder. `color` above keeps the Material role
+    // names every page already reads; this object carries the tokens that only
+    // exist in the Pebrel design system (selection washes, control geometry).
+    //
+    // Consumers should prefer `Theme.skin.x` over hard-coding a pixel value:
+    // the ladder is one source of truth shared with app/theme.py.
+    property var skin: (StyleManager && StyleManager.skin
+                        && Object.keys(StyleManager.skin).length > 0)
+                       ? StyleManager.skin : defaultSkin
+
+    property var defaultSkin: ({
+        "name": "nord",
+        "isLight": false,
+        "shell": "#2e3440",
+        "surface": "#2e3440",
+        "panel": "#3b4252",
+        "card": "#1bffffff",
+        "veil": "#2f020617",
+        "surfaceWash": "#0fcbd5e1",
+        "hover": "#23cbd5e1",
+        "hoverStrong": "#35cbd5e1",
+        "hairline": "#24abb5c7",
+        "ink": "#e5e9f0",
+        "inkDim": "#abb5c7",
+        "inkFaint": "#abb5c7",
+        "inkStrong": "#e5e9f0",
+        "inkOnAccent": "#2e3440",
+        "icon": "#abb5c7",
+        "iconHover": "#e5e9f0",
+        "accent": "#88c0d0",
+        "accentSoft": "#2e88c0d0",
+        "accentContrast": "#2e3440",
+        "danger": "#bf616a",
+        "ok": "#a3be8c",
+        "warn": "#ebcb8b",
+        "info": "#81a1c1",
+        "frame": "#657286",
+        "radiusChip": 4,
+        "radiusControl": 6,
+        "radiusIconTile": 7,
+        "radiusOverlay": 8,
+        "radiusLauncher": 14,
+        "radiusCard": 0,
+        "cardDivider": 1,
+        "controlHeight": 32,
+        "rowHeight": 44,
+        "denseRow": 38,
+        "hairlineWidth": 1,
+        "gutter": 8
+    })
+
     // Icon Font
     property FontLoader iconFont: FontLoader {
         source: "assets/MaterialIconsRound-Regular.otf"
@@ -190,6 +242,14 @@ QtObject {
         property int cornerLarge: 16
         property int cornerExtraLarge: 28
         property int cornerFull: 1000 // Effectively circular/pill
+        // Pebrel's ladder, shared with app/theme.py. Controls are 6, overlays
+        // are 8, chips/keycaps are 4, and the terminal card is flush by
+        // default. These are the values components should use; the MD3 names
+        // above stay for anything that genuinely wants a pill.
+        property int cornerChip: theme.skin.radiusChip
+        property int cornerControl: theme.skin.radiusControl
+        property int cornerIconTile: theme.skin.radiusIconTile
+        property int cornerOverlay: theme.skin.radiusOverlay
     }
 
     // Elevations

@@ -5,7 +5,9 @@ import md3.Core
 import QtQuick.Controls as Controls
 
 // Left rail: brand, search, grouped host list, footer actions.
-// Deliberately flat — a single panel colour, no cards, hairline separators.
+// Part of the window shell, not a panel: no fill of its own (the window clears
+// to the shell colour), hover rows are an ink wash, and the selected row is an
+// accent wash with a 2px accent bar — Pebrel's single selection voice.
 Item {
     id: root
     property var window
@@ -21,19 +23,14 @@ Item {
     signal settingsRequested()
     signal keysRequested()
 
-    readonly property var c: Theme.color
-    readonly property color hairline: c.outlineVariant
-    readonly property color hoverColor: window ? window.flatHover : "#22ffffff"
-    readonly property color selectedColor: window ? window.flatSelected : "#33ffffff"
+    readonly property var skin: Theme.skin
+    readonly property color hairline: skin.hairline
+    readonly property color hoverColor: skin.hover
+    readonly property color selectedColor: skin.accentSoft
 
     function focusSearch() {
         searchField.forceActiveFocus()
         searchField.selectAll()
-    }
-
-    Rectangle {
-        anchors.fill: parent
-        color: Theme.color.surfaceContainerLow
     }
 
     // ── Brand + window controls ────────────────────────────────────────
@@ -44,7 +41,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: 74
+        height: 56
 
         MouseArea {
             anchors.fill: parent
@@ -57,46 +54,43 @@ Item {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            spacing: 10
+            anchors.leftMargin: 14
+            anchors.rightMargin: 14
+            spacing: 9
 
+            // Brand mark: a neutral icon tile, not an accent-filled circle —
+            // the accent is reserved for selection and primary actions.
             Rectangle {
                 Layout.preferredWidth: 26
                 Layout.preferredHeight: 26
-                radius: 13
-                color: Theme.color.primary
+                radius: root.skin.radiusControl
+                color: root.skin.surfaceWash
+                border.width: root.skin.isLight ? 1 : 0
+                border.color: root.hairline
                 Text {
                     anchors.centerIn: parent
                     text: "terminal"
                     font.family: Theme.iconFont.name
                     font.pixelSize: 16
-                    color: Theme.color.onPrimaryColor
+                    color: root.skin.ink
                 }
             }
 
             ColumnLayout {
-                spacing: -1
+                spacing: 0
                 Text {
                     text: "LItsshP"
                     font.family: Theme.typography.titleSmall.family
-                    font.pixelSize: 15
+                    font.pixelSize: 13
                     font.weight: Font.DemiBold
-                    color: Theme.color.onSurfaceColor
+                    color: root.skin.inkStrong
                 }
                 Text {
-                    text: "tssh · ~/.ssh"
+                    text: "tssh · ~/.ssh · "
+                          + (App.hosts.length === 1 ? "1 host" : App.hosts.length + " hosts")
                     font.family: Theme.typography.labelSmall.family
                     font.pixelSize: 10
-                    color: Theme.color.onSurfaceVariantColor
-                }
-                Text {
-                    text: App.hosts.length === 1 ? "1 host"
-                                                        : App.hosts.length + " hosts"
-                    font.family: Theme.typography.labelSmall.family
-                    font.pixelSize: 10
-                    color: Theme.color.onSurfaceVariantColor
-                    opacity: 0.75
+                    color: root.skin.inkFaint
                 }
             }
 
@@ -114,43 +108,45 @@ Item {
     }
 
     // ── Search ─────────────────────────────────────────────────────────
+    // A filled inset field: on dark themes it is the terminal surface showing
+    // through the shell; on light themes it is white on the dimmed shell. Radius
+    // and height come from the control ladder (6px / 32px), not a pill.
     Rectangle {
         id: searchBox
         anchors.top: header.bottom
-        anchors.topMargin: 14
+        anchors.topMargin: 10
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.leftMargin: 12
         anchors.rightMargin: 12
-        height: 36
-        radius: window ? window.radiusMedium : 10
-        color: searchMouse.containsMouse ? Theme.color.surfaceContainerHigh
-                                         : Theme.color.surfaceContainer
-        border.width: searchField.activeFocus ? 1 : 0
-        border.color: Theme.color.primary
+        height: root.skin.controlHeight
+        radius: root.skin.radiusControl
+        color: root.skin.isLight ? "#ffffff" : root.skin.surface
+        border.width: 1
+        border.color: searchField.activeFocus ? root.skin.accent : root.hairline
 
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 10
             anchors.rightMargin: 8
-            spacing: 6
+            spacing: 7
 
             Text {
                 text: "search"
                 font.family: Theme.iconFont.name
-                font.pixelSize: 17
-                color: Theme.color.onSurfaceVariantColor
+                font.pixelSize: 16
+                color: root.skin.inkFaint
             }
 
             TextInput {
                 id: searchField
                 Layout.fillWidth: true
                 verticalAlignment: TextInput.AlignVCenter
-                color: Theme.color.onSurfaceColor
-                selectionColor: Theme.color.primary
-                selectedTextColor: Theme.color.onPrimaryColor
+                color: root.skin.ink
+                selectionColor: root.skin.accent
+                selectedTextColor: root.skin.inkOnAccent
                 font.family: Theme.typography.bodyMedium.family
-                font.pixelSize: 13
+                font.pixelSize: 12
                 clip: true
                 onTextChanged: root.filter = text
 
@@ -160,8 +156,7 @@ Item {
                     visible: !searchField.text && !searchField.activeFocus
                     text: "Search hosts"
                     font: searchField.font
-                    color: Theme.color.onSurfaceVariantColor
-                    opacity: 0.75
+                    color: root.skin.inkFaint
                 }
 
                 Keys.onEscapePressed: {
@@ -180,8 +175,8 @@ Item {
                 visible: searchField.text.length > 0
                 text: "close"
                 font.family: Theme.iconFont.name
-                font.pixelSize: 15
-                color: Theme.color.onSurfaceVariantColor
+                font.pixelSize: 14
+                color: root.skin.inkFaint
                 MouseArea {
                     anchors.fill: parent
                     anchors.margins: -6
@@ -193,26 +188,20 @@ Item {
                 }
             }
         }
-
-        MouseArea {
-            id: searchMouse
-            anchors.fill: parent
-            acceptedButtons: Qt.NoButton
-            hoverEnabled: true
-            z: -1
-        }
     }
 
     // ── Group chips ────────────────────────────────────────────────────
+    // Section captions, not pills: Pebrel keeps the sidebar free of rounded
+    // containers, so "All" and each group are small labels separated by a dot.
     Flickable {
         id: groupBar
         anchors.top: searchBox.bottom
-        anchors.topMargin: 10
+        anchors.topMargin: 8
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: 12
-        anchors.rightMargin: 12
-        height: App.groups.length > 0 ? 30 : 0
+        anchors.leftMargin: 14
+        anchors.rightMargin: 14
+        height: App.groups.length > 0 ? 22 : 0
         visible: height > 0
         contentWidth: groupRow.width
         clip: true
@@ -221,7 +210,7 @@ Item {
 
         Row {
             id: groupRow
-            spacing: 6
+            spacing: 14
             GroupChip {
                 label: "All"
                 active: root.selectedGroup === ""
@@ -242,11 +231,11 @@ Item {
     ListView {
         id: hostList
         anchors.top: groupBar.visible ? groupBar.bottom : searchBox.bottom
-        anchors.topMargin: 12
+        anchors.topMargin: 8
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: footer.top
-        anchors.bottomMargin: 8
+        anchors.bottomMargin: 6
         clip: true
         spacing: 2
         model: hostModel
@@ -255,8 +244,8 @@ Item {
         Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
 
         delegate: HostRow {
-            width: hostList.width - 16
-            x: 8
+            width: hostList.width - 12
+            x: 6
             alias: model.alias
             hostname: model.hostname
             port: model.port
@@ -282,16 +271,15 @@ Item {
         anchors.centerIn: parent
         anchors.verticalCenterOffset: 20
         width: parent.width - 48
-        spacing: 10
+        spacing: 8
         visible: hostList.count === 0
-        opacity: 0.85
 
         Text {
             Layout.alignment: Qt.AlignHCenter
             text: root.filter.length > 0 ? "search_off" : "dns"
             font.family: Theme.iconFont.name
-            font.pixelSize: 34
-            color: Theme.color.onSurfaceVariantColor
+            font.pixelSize: 30
+            color: root.skin.inkFaint
         }
         Text {
             Layout.alignment: Qt.AlignHCenter
@@ -301,12 +289,13 @@ Item {
             text: root.filter.length > 0
                   ? "No host matches \u201c" + root.filter + "\u201d"
                   : "No hosts in ~/.ssh/config yet"
-            font.family: Theme.typography.bodyMedium.family
-            font.pixelSize: 13
-            color: Theme.color.onSurfaceVariantColor
+            font.family: Theme.typography.bodySmall.family
+            font.pixelSize: 11
+            color: root.skin.inkDim
         }
         Button {
             Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 4
             visible: root.filter.length === 0
             text: "Add host"
             icon: "add"
@@ -321,7 +310,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: 52
+        height: 44
         color: "transparent"
 
         Rectangle {
@@ -329,14 +318,13 @@ Item {
             width: parent.width
             height: 1
             color: root.hairline
-            opacity: 0.6
         }
 
         Row {
             anchors.fill: parent
             anchors.leftMargin: 8
-            anchors.rightMargin: 12
-            spacing: 4
+            anchors.rightMargin: 8
+            spacing: 2
 
             FooterButton {
                 icon: "add"
@@ -396,33 +384,33 @@ Item {
         property string icon: ""
         property string label: ""
         signal activated()
-        implicitWidth: fbRow.width + 20
-        implicitHeight: 34
+        implicitWidth: fbRow.width + 16
+        implicitHeight: 30
         width: implicitWidth
         height: implicitHeight
 
         Rectangle {
             anchors.fill: parent
-            radius: 8
+            radius: root.skin.radiusControl
             color: fbMouse.containsMouse ? root.hoverColor : "transparent"
         }
         Row {
             id: fbRow
             anchors.centerIn: parent
-            spacing: 6
+            spacing: 5
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: fb.icon
                 font.family: Theme.iconFont.name
-                font.pixelSize: 17
-                color: Theme.color.onSurfaceVariantColor
+                font.pixelSize: 16
+                color: fbMouse.containsMouse ? root.skin.iconHover : root.skin.icon
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: fb.label
                 font.family: Theme.typography.labelMedium.family
-                font.pixelSize: 12
-                color: Theme.color.onSurfaceVariantColor
+                font.pixelSize: 11
+                color: fbMouse.containsMouse ? root.skin.ink : root.skin.inkDim
             }
         }
         MouseArea {
@@ -434,38 +422,38 @@ Item {
         }
     }
 
+    // Section caption. Pebrel's sidebar has no chip containers: the active
+    // item is simply the brightest ink in the row.
     component GroupChip: Item {
         id: chip
         property string label: ""
         property bool active: false
         signal activated()
-        width: chipText.implicitWidth + 20
-        height: 26
+        width: chipText.implicitWidth
+        height: 22
 
-        Rectangle {
-            anchors.fill: parent
-            radius: 13
-            color: chip.active ? Theme.color.secondaryContainer : "transparent"
-            border.width: 1
-            border.color: chip.active ? "transparent" : root.hairline
-        }
         Text {
             id: chipText
             anchors.centerIn: parent
             text: chip.label
-            font.family: Theme.typography.labelMedium.family
-            font.pixelSize: 11
-            color: chip.active ? Theme.color.onSecondaryContainerColor
-                               : Theme.color.onSurfaceVariantColor
+            font.family: Theme.typography.labelSmall.family
+            font.pixelSize: 10
+            font.weight: chip.active ? Font.DemiBold : Font.Medium
+            font.letterSpacing: 0.4
+            color: chip.active ? root.skin.ink
+                               : (chipMouse.containsMouse ? root.skin.inkDim : root.skin.inkFaint)
         }
         MouseArea {
+            id: chipMouse
             anchors.fill: parent
+            anchors.margins: -4
+            hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: chip.activated()
         }
     }
 
-    component HostRow: Rectangle {
+    component HostRow: Item {
         id: row
         property string alias: ""
         property string hostname: ""
@@ -483,55 +471,62 @@ Item {
         signal deleteRequested()
         signal contextRequested(real x, real y)
 
-        height: 54
-        radius: window ? window.radiusMedium : 10
-        color: active ? root.selectedColor : (rowMouse.containsMouse ? root.hoverColor : "transparent")
+        height: 46
+
+        // Active row: accent wash plus a 2px accent bar on the left edge.
+        // Hover is a neutral ink wash — the two states never look alike.
+        Rectangle {
+            anchors.fill: parent
+            radius: root.skin.radiusControl
+            color: row.active ? root.selectedColor
+                              : (row.hovered ? root.hoverColor : "transparent")
+        }
 
         Rectangle {
-            // Accent bar marks the active session.
             visible: row.active
-            width: 3
-            height: 22
-            radius: 2
+            width: 2
+            height: 20
+            radius: 1
             anchors.left: parent.left
+            anchors.leftMargin: 3
             anchors.verticalCenter: parent.verticalCenter
-            color: Theme.color.primary
+            color: root.skin.accent
         }
 
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 12
-            anchors.rightMargin: 8
-            spacing: 10
+            anchors.rightMargin: 10
+            spacing: 9
 
-            Rectangle {
-                Layout.preferredWidth: 32
-                Layout.preferredHeight: 32
-                radius: 16
-                color: row.active ? Theme.color.primaryContainer : Theme.color.surfaceContainerHigh
+            // Glyph tile instead of a colored avatar: neutral by default,
+            // accent-tinted only while the session is the selected one.
+            Item {
+                Layout.preferredWidth: 20
+                Layout.preferredHeight: 20
                 Text {
                     anchors.centerIn: parent
                     text: "dns"
                     font.family: Theme.iconFont.name
                     font.pixelSize: 16
-                    color: row.active ? Theme.color.onPrimaryContainerColor
-                                      : Theme.color.onSurfaceVariantColor
+                    color: row.active ? root.skin.accent
+                                      : (row.hovered ? root.skin.iconHover : root.skin.icon)
                 }
             }
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 1
+                spacing: 0
 
                 RowLayout {
-                    spacing: 6
+                    spacing: 5
                     Layout.fillWidth: true
                     Text {
                         text: row.alias
                         font.family: Theme.typography.bodyMedium.family
-                        font.pixelSize: 13
+                        font.pixelSize: 12
                         font.weight: Font.Medium
-                        color: Theme.color.onSurfaceColor
+                        color: row.active ? root.skin.inkStrong : root.skin.ink
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -539,9 +534,8 @@ Item {
                         visible: row.hasPassword
                         text: "key"
                         font.family: Theme.iconFont.name
-                        font.pixelSize: 12
-                        color: Theme.color.tertiary
-                        opacity: 0.9
+                        font.pixelSize: 11
+                        color: root.skin.inkFaint
                     }
                 }
 
@@ -549,19 +543,19 @@ Item {
                     text: (row.user ? row.user + "@" : "") + row.hostname +
                           (row.port && row.port !== "22" ? ":" + row.port : "")
                     font.family: Theme.typography.labelSmall.family
-                    font.pixelSize: 11
-                    color: Theme.color.onSurfaceVariantColor
+                    font.pixelSize: 10
+                    color: root.skin.inkFaint
                     elide: Text.ElideMiddle
                     Layout.fillWidth: true
                 }
             }
 
             Text {
-                visible: rowMouse.containsMouse
+                visible: row.hovered
                 text: "more_vert"
                 font.family: Theme.iconFont.name
-                font.pixelSize: 17
-                color: Theme.color.onSurfaceVariantColor
+                font.pixelSize: 16
+                color: root.skin.icon
                     MouseArea {
                         anchors.fill: parent
                         anchors.margins: -8

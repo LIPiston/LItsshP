@@ -10,7 +10,6 @@ Item {
     id: root
     property var window
 
-    readonly property var c: Theme.color
     readonly property var items: App.snippets
 
     property string editingName: ""
@@ -73,8 +72,8 @@ Item {
     Rectangle {
         id: scrim
         anchors.fill: parent
-        color: "#000000"
-        opacity: 0.42
+        color: Theme.skin.veil
+        opacity: 1
         visible: false
         z: 1250
         MouseArea { anchors.fill: parent; onClicked: root.close() }
@@ -87,10 +86,10 @@ Item {
         width: Math.min(680, root.width - 90)
         height: Math.min(560, root.height - 80)
         anchors.centerIn: parent
-        radius: 14
-        color: Theme.color.surfaceContainerLow
+        radius: Theme.skin.radiusOverlay
+        color: Theme.skin.panel
         border.width: 1
-        border.color: Theme.color.outlineVariant
+        border.color: Theme.skin.hairline
 
         ColumnLayout {
             anchors.fill: parent
@@ -108,13 +107,13 @@ Item {
                         text: "Snippets"
                         font.family: Theme.typography.titleLarge.family
                         font.pixelSize: 18
-                        color: Theme.color.onSurfaceColor
+                        color: Theme.skin.ink
                     }
                     Text {
                         text: "Ctrl+Shift+P to run"
                         font.family: Theme.typography.labelSmall.family
                         font.pixelSize: 10
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                         opacity: 0.8
                     }
                     Item { Layout.fillWidth: true }
@@ -123,7 +122,7 @@ Item {
                         Layout.preferredHeight: 30
                         Rectangle {
                             anchors.fill: parent
-                            radius: 6
+                            radius: Theme.skin.radiusControl
                             color: closeHover.containsMouse ? root.window.flatHover : "transparent"
                         }
                         Text {
@@ -131,7 +130,7 @@ Item {
                             text: "close"
                             font.family: Theme.iconFont.name
                             font.pixelSize: 17
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
                         MouseArea {
                             id: closeHover
@@ -146,7 +145,7 @@ Item {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: 1
-                    color: Theme.color.outlineVariant
+                    color: Theme.skin.hairline
                 }
             }
 
@@ -178,7 +177,7 @@ Item {
                                   + "typed into the active session."
                             font.family: Theme.typography.bodySmall.family
                             font.pixelSize: 11
-                            color: Theme.color.onSurfaceVariantColor
+                            color: Theme.skin.inkDim
                         }
 
                         Repeater {
@@ -187,11 +186,11 @@ Item {
                                 required property var modelData
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 46
-                                radius: 8
+                                radius: Theme.skin.radiusControl
                                 color: root.editingName === modelData.name
-                                       ? Theme.color.primaryContainer
+                                       ? Theme.skin.accentSoft
                                        : (itemMouse.containsMouse
-                                          ? Theme.color.surfaceContainerHigh : "transparent")
+                                          ? Theme.skin.surfaceWash : "transparent")
 
                                 ColumnLayout {
                                     anchors.fill: parent
@@ -202,7 +201,7 @@ Item {
                                         text: modelData.name
                                         font.family: Theme.typography.bodyMedium.family
                                         font.pixelSize: 12
-                                        color: Theme.color.onSurfaceColor
+                                        color: Theme.skin.ink
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
                                     }
@@ -210,7 +209,7 @@ Item {
                                         text: modelData.command
                                         font.family: "Cascadia Mono"
                                         font.pixelSize: 10
-                                        color: Theme.color.onSurfaceVariantColor
+                                        color: Theme.skin.inkDim
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
                                     }
@@ -230,7 +229,7 @@ Item {
                 Rectangle {
                     Layout.preferredWidth: 1
                     Layout.fillHeight: true
-                    color: Theme.color.outlineVariant
+                    color: Theme.skin.hairline
                 }
 
                 // Editor
@@ -244,7 +243,7 @@ Item {
                         text: root.editingName ? "Edit snippet" : "New snippet"
                         font.family: Theme.typography.titleSmall.family
                         font.pixelSize: 14
-                        color: Theme.color.onSurfaceColor
+                        color: Theme.skin.ink
                     }
 
                     TextField {
@@ -254,17 +253,17 @@ Item {
                         placeholderText: "Restart nginx"
                         text: root.nameText
                         type: "outlined"
-                        labelBackgroundColor: Theme.color.surfaceContainerLow
+                        labelBackgroundColor: Theme.skin.panel
                         onTextChanged: root.nameText = text
                     }
 
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 120
-                        radius: 10
-                        color: Theme.color.surfaceContainerLowest
+                        radius: Theme.skin.radiusOverlay
+                        color: Theme.skin.surface
                         border.width: 1
-                        border.color: Theme.color.outlineVariant
+                        border.color: Theme.skin.hairline
 
                         // Same clipped-TextEdit shape as the raw-block editor:
                         // nesting a TextEdit in a Flickable rendered nothing.
@@ -289,9 +288,9 @@ Item {
                                 selectByMouse: true
                                 font.family: "Cascadia Mono"
                                 font.pixelSize: 12
-                                color: Theme.color.onSurfaceColor
-                                selectionColor: Theme.color.primary
-                                selectedTextColor: Theme.color.onPrimaryColor
+                                color: Theme.skin.ink
+                                selectionColor: Theme.skin.accent
+                                selectedTextColor: Theme.skin.inkOnAccent
                                 onTextChanged: root.commandText = text
                                 onCursorPositionChanged: {
                                     var caret = cursorRectangle
@@ -315,7 +314,7 @@ Item {
                                 visible: commandArea.text.length === 0
                                 text: "systemctl restart nginx"
                                 font: commandArea.font
-                                color: Theme.color.onSurfaceVariantColor
+                                color: Theme.skin.inkDim
                                 opacity: 0.55
                             }
 
@@ -338,7 +337,7 @@ Item {
                               + "stdin work normally. It does not run before the shell is ready."
                         font.family: Theme.typography.bodySmall.family
                         font.pixelSize: 10
-                        color: Theme.color.onSurfaceVariantColor
+                        color: Theme.skin.inkDim
                         opacity: 0.8
                     }
 
@@ -349,7 +348,7 @@ Item {
                         text: root.statusError
                         font.family: Theme.typography.labelSmall.family
                         font.pixelSize: 10
-                        color: Theme.color.error
+                        color: Theme.skin.danger
                     }
                     Text {
                         Layout.fillWidth: true
@@ -358,7 +357,7 @@ Item {
                         text: root.statusOk
                         font.family: Theme.typography.labelSmall.family
                         font.pixelSize: 10
-                        color: Theme.color.primary
+                        color: Theme.skin.accent
                     }
 
                     Item { Layout.fillHeight: true }

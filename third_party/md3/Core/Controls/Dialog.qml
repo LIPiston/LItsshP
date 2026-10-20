@@ -161,8 +161,8 @@ Item {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
-                height: mainColumn.implicitHeight + 48 // Padding
-                radius: 28 // MD3 Extra Large
+                height: mainColumn.implicitHeight + 40 // Padding
+                radius: _shape.cornerOverlay
                 color: _colors.surfaceContainerHigh
                 
                 // Block clicks from passing through to scrim
@@ -175,10 +175,10 @@ Item {
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.topMargin: 24
-                    anchors.leftMargin: 24
-                    anchors.rightMargin: 24
-                    spacing: 16
+                    anchors.topMargin: 20
+                    anchors.leftMargin: 20
+                    anchors.rightMargin: 20
+                    spacing: 12
                     
                     // Icon
                     Text {
@@ -195,9 +195,9 @@ Item {
                     Text {
                         visible: control.title !== ""
                         text: control.title
-                        font.family: _typography.headlineSmall.family
-                        font.pixelSize: _typography.headlineSmall.size
-                        font.weight: _typography.headlineSmall.weight
+                        font.family: _typography.titleLarge.family
+                        font.pixelSize: 17
+                        font.weight: Font.DemiBold
                         color: _colors.onSurfaceColor
                         Layout.fillWidth: true
                         Layout.alignment: control.icon !== "" ? Qt.AlignHCenter : Qt.AlignLeft
@@ -210,7 +210,7 @@ Item {
                         visible: control.text !== ""
                         text: control.text
                         font.family: _typography.bodyMedium.family
-                        font.pixelSize: _typography.bodyMedium.size
+                        font.pixelSize: 12
                         font.weight: _typography.bodyMedium.weight
                         color: _colors.onSurfaceVariantColor
                         Layout.fillWidth: true
@@ -263,9 +263,9 @@ Item {
                 anchors.fill: dialogContainer
                 shadowEnabled: true
                 shadowColor: Theme.color.shadow
-                shadowBlur: 12
-                shadowVerticalOffset: 4
-                shadowOpacity: 0.3
+                shadowBlur: 20
+                shadowVerticalOffset: 7
+                shadowOpacity: 0.26
                 z: -1
             }
         }

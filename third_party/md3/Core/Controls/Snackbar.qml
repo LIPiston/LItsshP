@@ -69,21 +69,24 @@ Item {
     Rectangle {
         id: background
         width: control.width
-        height: layout.implicitHeight + 28 
-        color: Theme.color.inverseSurface
-        radius: 4
+        height: layout.implicitHeight + 20
+        color: Theme.skin.panel
+        radius: Theme.skin.radiusOverlay
+        border.width: 1
+        border.color: Theme.skin.hairline
         
         RowLayout {
             id: layout
             anchors.fill: parent
-            anchors.margins: 14
-            spacing: 8
+            anchors.margins: 10
+            anchors.leftMargin: 14
+            spacing: 6
             
             Text {
                 text: control.text
-                color: Theme.color.inverseOnSurface
+                color: Theme.skin.ink
                 font.family: Theme.typography.bodyMedium.family
-                font.pixelSize: Theme.typography.bodyMedium.size
+                font.pixelSize: 12
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 verticalAlignment: Text.AlignVCenter
@@ -93,13 +96,13 @@ Item {
             Button {
                 visible: control.actionText !== ""
                 type: "text"
-                Layout.preferredHeight: 36
+                Layout.preferredHeight: 28
                 
                 contentItem: Text {
                     text: control.actionText
-                    color: Theme.color.inversePrimary
+                    color: Theme.skin.accent
                     font.family: Theme.typography.labelLarge.family
-                    font.pixelSize: Theme.typography.labelLarge.size
+                    font.pixelSize: 11
                     font.weight: Theme.typography.labelLarge.weight
                     verticalAlignment: Text.AlignVCenter
                     horizontalAlignment: Text.AlignHCenter
@@ -114,13 +117,13 @@ Item {
             // Close Icon
             Item {
                 visible: control.actionText === ""
-                Layout.preferredWidth: 36
-                Layout.preferredHeight: 36
+                Layout.preferredWidth: 26
+                Layout.preferredHeight: 26
                 
                 Ripple {
                     anchors.fill: parent
-                    clipRadius: 18
-                    rippleColor: Theme.color.inverseOnSurface
+                    clipRadius: 13
+                    rippleColor: Theme.skin.ink
                     onClicked: control.close()
                 }
                 
@@ -128,8 +131,8 @@ Item {
                     anchors.centerIn: parent
                     text: "close"
                     font.family: Theme.iconFont.name
-                    font.pixelSize: 20
-                    color: Theme.color.inverseOnSurface
+                    font.pixelSize: 16
+                    color: Theme.skin.inkDim
                 }
             }
         }

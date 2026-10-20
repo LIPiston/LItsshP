@@ -4,13 +4,17 @@ import QtQuick.Layouts
 import md3.Core
 
 // Right side: flat tab strip + terminal stack + empty state + status bar.
+// This item lives inside the workspace card, so it must not paint its own
+// background: the card's surface shows through, and only hairlines divide the
+// regions. Pebrel's tab state is a pill fill (accent wash when active), never
+// an underline — an underline would add a second selection voice.
 Item {
     id: root
     property var window
 
-    readonly property var c: Theme.color
-    readonly property color hairline: c.outlineVariant
-    readonly property color hoverColor: window ? window.flatHover : "#22ffffff"
+    readonly property var skin: Theme.skin
+    readonly property color hairline: skin.hairline
+    readonly property color hoverColor: skin.hover
 
     // The pane QML-side shortcuts act on: Ctrl+Shift+C/V and the composer.
     // This is a function rather than a bound property on purpose: a Repeater
@@ -46,31 +50,33 @@ Item {
     // ── Empty state ────────────────────────────────────────────────────
     ColumnLayout {
         anchors.centerIn: parent
-        width: Math.min(460, Math.max(280, parent.width - 80))
-        spacing: 14
+        width: Math.min(420, Math.max(280, parent.width - 80))
+        spacing: 10
         visible: !App.hasTabs
 
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: 64
-            Layout.preferredHeight: 64
-            radius: 32
-            color: root.window ? root.window.flatPanelHigh : Theme.color.surfaceContainer
+            Layout.preferredWidth: 48
+            Layout.preferredHeight: 48
+            radius: root.skin.radiusControl + 2
+            color: root.skin.accentSoft
             Text {
                 anchors.centerIn: parent
                 text: "terminal"
                 font.family: Theme.iconFont.name
-                font.pixelSize: 30
-                color: Theme.color.primary
+                font.pixelSize: 24
+                color: root.skin.accent
             }
         }
 
         Text {
             Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 4
             text: App.hosts.length === 0 ? "No hosts yet" : "Pick a host to connect"
-            font.family: Theme.typography.headlineSmall.family
-            font.pixelSize: 22
-            color: Theme.color.onSurfaceColor
+            font.family: Theme.typography.titleMedium.family
+            font.pixelSize: 16
+            font.weight: Font.Medium
+            color: root.skin.ink
         }
 
         Text {
@@ -81,14 +87,16 @@ Item {
             text: App.hosts.length === 0
                   ? "Hosts are read from ~/.ssh/config — the same file tssh uses. Add one to get started."
                   : "Sessions open as tabs. Everything runs through tssh, so stored passwords, jump hosts and trzsz file transfer keep working."
-            font.family: Theme.typography.bodyMedium.family
-            font.pixelSize: 13
-            color: Theme.color.onSurfaceVariantColor
+            font.family: Theme.typography.bodySmall.family
+            font.pixelSize: 12
+            color: root.skin.inkDim
+            opacity: 0.9
         }
 
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
-            spacing: 10
+            Layout.topMargin: 6
+            spacing: 8
 
             Button {
                 text: App.hosts.length === 0 ? "Add your first host" : "Browse hosts"
@@ -121,8 +129,8 @@ Item {
 
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
-            Layout.topMargin: 16
-            spacing: 16
+            Layout.topMargin: 14
+            spacing: 14
 
             Repeater {
                 model: ["Ctrl+N  new host", "Ctrl+T  search", "Ctrl+,  settings"]
@@ -131,30 +139,24 @@ Item {
                     text: modelData
                     font.family: Theme.typography.labelSmall.family
                     font.pixelSize: 10
-                    color: Theme.color.onSurfaceVariantColor
-                    opacity: 0.7
+                    color: root.skin.inkFaint
                 }
             }
         }
     }
 
     // ── Tab strip ──────────────────────────────────────────────────────
+    // No fill and no bottom border: the strip is part of the card surface, and
+    // the active tab is a pill (accent wash). An underline on top of that
+    // would be a second selection cue, which Pebrel avoids.
     Rectangle {
         id: tabBar
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: App.hasTabs ? 44 : 0
+        height: App.hasTabs ? 38 : 0
         visible: App.hasTabs
-        color: Theme.color.surface
-
-        Rectangle {
-            anchors.bottom: parent.bottom
-            width: parent.width
-            height: 1
-            color: root.hairline
-            opacity: 0.7
-        }
+        color: "transparent"
 
         RowLayout {
             anchors.fill: parent
@@ -180,32 +182,33 @@ Item {
                     required property int index
                     property bool isActive: index === App.activeIndex
 
-                    width: Math.min(240, 112 + String(modelData.host).length * 5.5)
+                    width: Math.min(220, 104 + String(modelData.host).length * 5)
                     height: tabList.height
 
                     Rectangle {
                         anchors.fill: parent
-                        anchors.topMargin: 6
-                        radius: root.window ? root.window.radiusSmall : 6
+                        anchors.topMargin: 5
+                        anchors.bottomMargin: 5
+                        radius: root.skin.radiusControl
                         color: tabItem.isActive
-                               ? Theme.color.surfaceContainerHigh
+                               ? root.skin.accentSoft
                                : (tabMouse.containsMouse ? root.hoverColor : "transparent")
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 4
-                            spacing: 7
+                            anchors.leftMargin: 9
+                            anchors.rightMargin: 3
+                            spacing: 6
 
                             Rectangle {
-                                Layout.preferredWidth: 7
-                                Layout.preferredHeight: 7
-                                radius: 4
+                                Layout.preferredWidth: 6
+                                Layout.preferredHeight: 6
+                                radius: 3
                                 color: {
-                                    if (modelData.state === "connected") return Theme.color.primary
-                                    if (modelData.state === "failed") return Theme.color.error
-                                    if (modelData.state === "closed") return Theme.color.outline
-                                    return Theme.color.tertiary
+                                    if (modelData.state === "connected") return root.skin.accent
+                                    if (modelData.state === "failed") return root.skin.danger
+                                    if (modelData.state === "closed") return root.skin.inkFaint
+                                    return root.skin.warn
                                 }
                             }
 
@@ -214,26 +217,26 @@ Item {
                                 text: modelData.host
                                 elide: Text.ElideRight
                                 font.family: Theme.typography.labelLarge.family
-                                font.pixelSize: 12
-                                color: tabItem.isActive ? Theme.color.onSurfaceColor
-                                                        : Theme.color.onSurfaceVariantColor
+                                font.pixelSize: 11
+                                font.weight: tabItem.isActive ? Font.Medium : Font.Normal
+                                color: tabItem.isActive ? root.skin.inkStrong : root.skin.inkDim
                             }
 
                             Item {
-                                Layout.preferredWidth: 20
-                                Layout.preferredHeight: 20
+                                Layout.preferredWidth: 18
+                                Layout.preferredHeight: 18
 
                                 Rectangle {
                                     anchors.fill: parent
-                                    radius: 4
+                                    radius: root.skin.radiusChip
                                     color: closeMouse.containsMouse ? root.hoverColor : "transparent"
                                 }
                                 Text {
                                     anchors.centerIn: parent
                                     text: "close"
                                     font.family: Theme.iconFont.name
-                                    font.pixelSize: 13
-                                    color: Theme.color.onSurfaceVariantColor
+                                    font.pixelSize: 12
+                                    color: closeMouse.containsMouse ? root.skin.iconHover : root.skin.icon
                                 }
                                 MouseArea {
                                     id: closeMouse
@@ -246,20 +249,10 @@ Item {
                         }
                     }
 
-                    Rectangle {
-                        visible: tabItem.isActive
-                        anchors.bottom: parent.bottom
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: parent.width - 16
-                        height: 2
-                        radius: 1
-                        color: Theme.color.primary
-                    }
-
                     MouseArea {
                         id: tabMouse
                         anchors.fill: parent
-                        anchors.rightMargin: 24
+                        anchors.rightMargin: 22
                         hoverEnabled: true
                         acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
                         cursorShape: Qt.PointingHandCursor
@@ -283,16 +276,17 @@ Item {
                 Layout.preferredHeight: implicitHeight
                 onClicked: transferPopover.toggle()
             }
-            // Port forwarding. Counts active forwards; the panel explains
-            // whether each is provided by a session or by its own process.
+            // Port forwarding. The icon tints when a forward is live; the
+            // panel explains whether each is provided by a session or by its
+            // own process.
             Item {
                 id: tunnelButton
-                Layout.preferredWidth: 30
-                Layout.preferredHeight: 30
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
 
                 Rectangle {
                     anchors.fill: parent
-                    radius: 6
+                    radius: root.skin.radiusControl
                     color: tunnelMouse.containsMouse ? root.hoverColor : "transparent"
                 }
                 Text {
@@ -300,28 +294,7 @@ Item {
                     text: "swap_horiz"
                     font.family: Theme.iconFont.name
                     font.pixelSize: 17
-                    color: App.tunnelActive ? Theme.color.primary
-                                            : Theme.color.onSurfaceVariantColor
-                }
-                Rectangle {
-                    visible: App.tunnelCount > 0
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.rightMargin: 3
-                    anchors.topMargin: 2
-                    width: Math.max(13, tunnelBadge.implicitWidth + 6)
-                    height: 13
-                    radius: 7
-                    color: Theme.color.primary
-                    Text {
-                        id: tunnelBadge
-                        anchors.centerIn: parent
-                        text: App.tunnelCount
-                        font.family: Theme.typography.labelSmall.family
-                        font.pixelSize: 8
-                        font.weight: Font.DemiBold
-                        color: Theme.color.onPrimaryColor
-                    }
+                    color: App.tunnelActive ? root.skin.accent : root.skin.icon
                 }
                 MouseArea {
                     id: tunnelMouse
@@ -332,7 +305,9 @@ Item {
                 }
                 ToolTip {
                     visible: tunnelMouse.containsMouse
-                    text: "Port forwarding (Ctrl+Shift+T)"
+                    text: App.tunnelCount > 0
+                          ? "Port forwarding · " + App.tunnelCount + " active (Ctrl+Shift+T)"
+                          : "Port forwarding (Ctrl+Shift+T)"
                     timeout: 8000
                 }
             }
@@ -341,17 +316,16 @@ Item {
                 tooltip: (App.settings.composerVisible !== false ? "Hide" : "Show") + " command composer"
                 onActivated: App.setSetting("composerVisible", !(App.settings.composerVisible !== false))
             }
-            // Opens the transfer list. The badge shows how many are running;
-            // `swap_vert` reads as "moving things between two places", which
-            // is what the panel is for.
+            // Opens the transfer list. `swap_vert` reads as "moving things
+            // between two places", which is what the panel is for.
             Item {
                 id: transferButton
-                Layout.preferredWidth: 30
-                Layout.preferredHeight: 30
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
 
                 Rectangle {
                     anchors.fill: parent
-                    radius: 6
+                    radius: root.skin.radiusControl
                     color: (transferMouse.containsMouse || transferPopover.opened)
                            ? root.hoverColor : "transparent"
                 }
@@ -361,30 +335,12 @@ Item {
                     font.family: Theme.iconFont.name
                     font.pixelSize: 17
                     color: (App.transferActive || transferPopover.opened)
-                           ? Theme.color.primary : Theme.color.onSurfaceVariantColor
+                           ? root.skin.accent : root.skin.icon
                 }
-                // Small running-count dot; also the only hint that transfers
-                // are happening when the indicator is collapsed.
-                Rectangle {
-                    visible: App.transferCount > 0
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.rightMargin: 3
-                    anchors.topMargin: 2
-                    width: Math.max(13, badgeText.implicitWidth + 6)
-                    height: 13
-                    radius: 7
-                    color: Theme.color.primary
-                    Text {
-                        id: badgeText
-                        anchors.centerIn: parent
-                        text: App.transferCount
-                        font.family: Theme.typography.labelSmall.family
-                        font.pixelSize: 8
-                        font.weight: Font.DemiBold
-                        color: Theme.color.onPrimaryColor
-                    }
-                }
+                // No count badge here: a dot anchored to the icon's top-right
+                // sits on top of the glyph and reads as a close control. The
+                // icon tint carries the state instead, and the count lives in
+                // the tooltip and in the panel.
                 MouseArea {
                     id: transferMouse
                     anchors.fill: parent
@@ -394,7 +350,9 @@ Item {
                 }
                 ToolTip {
                     visible: transferMouse.containsMouse && !transferPopover.opened
-                    text: "Transfers"
+                    text: App.transferCount > 0
+                          ? "Transfers · " + App.transferCount + " running"
+                          : "Transfers"
                     timeout: 8000
                 }
             }
@@ -450,30 +408,30 @@ Item {
         }
 
         // Divider between the two panes, with a click target for swapping
-        // which side leads (the small chevrons).
+        // which side leads (the small chevrons). A hairline, not a 2px rule:
+        // the split is a seam inside one card.
         Rectangle {
             visible: terminalArea.split
             x: Math.round(terminalArea.width / 2) - 1
-            width: 2
+            width: 1
             height: parent.height
-            color: Theme.color.outlineVariant
+            color: root.hairline
 
             Rectangle {
                 anchors.centerIn: parent
-                width: 18
-                height: 54
-                radius: 9
-                color: Theme.color.surfaceContainerHigh
+                width: 16
+                height: 48
+                radius: Theme.skin.radiusChip
+                color: root.skin.panel
                 border.width: 1
-                border.color: Theme.color.outlineVariant
+                border.color: root.hairline
 
                 Text {
                     anchors.centerIn: parent
                     text: "swap_horiz"
                     font.family: Theme.iconFont.name
                     font.pixelSize: 14
-                    color: swapHover.containsMouse ? Theme.color.primary
-                                                   : Theme.color.onSurfaceVariantColor
+                    color: swapHover.containsMouse ? root.skin.accent : root.skin.icon
                 }
                 MouseArea {
                     id: swapHover
@@ -495,9 +453,9 @@ Item {
         anchors.left: terminalArea.left
         anchors.right: terminalArea.right
         anchors.top: terminalArea.top
-        height: 30
+        height: 28
         z: 5
-        color: Theme.color.surfaceContainerHigh
+        color: root.skin.panel
 
         Rectangle {
             anchors.bottom: parent.bottom
@@ -509,41 +467,41 @@ Item {
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 12
-            anchors.rightMargin: 8
-            spacing: 10
+            anchors.rightMargin: 6
+            spacing: 8
 
             Text {
                 text: "vertical_split"
                 font.family: Theme.iconFont.name
                 font.pixelSize: 14
-                color: Theme.color.onSurfaceVariantColor
+                color: root.skin.icon
             }
             Text {
                 text: App.tabs[App.activeIndex] ? App.tabs[App.activeIndex].host : ""
                 font.family: Theme.typography.labelMedium.family
                 font.pixelSize: 11
-                color: Theme.color.onSurfaceColor
+                color: root.skin.ink
             }
             Text {
                 text: "│"
-                font.pixelSize: 11
-                color: Theme.color.outline
+                font.pixelSize: 10
+                color: root.hairline
             }
             Text {
                 text: App.tabs[App.splitIndex] ? App.tabs[App.splitIndex].host : ""
                 font.family: Theme.typography.labelMedium.family
                 font.pixelSize: 11
-                color: Theme.color.onSurfaceColor
+                color: root.skin.ink
             }
 
             Item { Layout.fillWidth: true }
 
             Rectangle {
-                Layout.preferredWidth: broadcastRow.width + 16
-                Layout.preferredHeight: 22
-                radius: 11
+                Layout.preferredWidth: broadcastRow.width + 14
+                Layout.preferredHeight: 20
+                radius: root.skin.radiusChip
                 color: App.settings.broadcastInput === true
-                       ? Theme.color.primaryContainer : "transparent"
+                       ? root.skin.accentSoft : "transparent"
                 border.width: 1
                 border.color: App.settings.broadcastInput === true
                               ? "transparent" : root.hairline
@@ -551,15 +509,14 @@ Item {
                 Row {
                     id: broadcastRow
                     anchors.centerIn: parent
-                    spacing: 5
+                    spacing: 4
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "campaign"
                         font.family: Theme.iconFont.name
-                        font.pixelSize: 13
+                        font.pixelSize: 12
                         color: App.settings.broadcastInput === true
-                               ? Theme.color.onPrimaryContainerColor
-                               : Theme.color.onSurfaceVariantColor
+                               ? root.skin.accent : root.skin.icon
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
@@ -567,8 +524,7 @@ Item {
                         font.family: Theme.typography.labelSmall.family
                         font.pixelSize: 10
                         color: App.settings.broadcastInput === true
-                               ? Theme.color.onPrimaryContainerColor
-                               : Theme.color.onSurfaceVariantColor
+                               ? root.skin.inkStrong : root.skin.inkDim
                     }
                 }
                 MouseArea {
@@ -581,10 +537,10 @@ Item {
 
             Text {
                 visible: App.settings.broadcastInput === true
-                text: "open composer to send to both"
+                text: "composer sends to both"
                 font.family: Theme.typography.labelSmall.family
                 font.pixelSize: 9
-                color: Theme.color.onSurfaceVariantColor
+                color: root.skin.inkFaint
             }
 
             Item {
@@ -595,8 +551,7 @@ Item {
                     text: "close"
                     font.family: Theme.iconFont.name
                     font.pixelSize: 14
-                    color: splitCloseHover.containsMouse ? Theme.color.onSurfaceColor
-                                                         : Theme.color.onSurfaceVariantColor
+                    color: splitCloseHover.containsMouse ? root.skin.ink : root.skin.icon
                 }
                 MouseArea {
                     id: splitCloseHover
@@ -627,28 +582,29 @@ Item {
     }
 
     // ── Status bar ─────────────────────────────────────────────────────
+    // A quiet footer line: no fill, one hairline above, ink-faint type. The
+    // only accent is the reconnect action.
     Rectangle {
         id: statusBar
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: App.hasTabs ? 26 : 0
+        height: App.hasTabs ? 24 : 0
         visible: App.hasTabs
-        color: Theme.color.surface
+        color: "transparent"
 
         Rectangle {
             anchors.top: parent.top
             width: parent.width
             height: 1
             color: root.hairline
-            opacity: 0.7
         }
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 14
-            anchors.rightMargin: 14
-            spacing: 14
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 12
 
             Text {
                 text: {
@@ -662,7 +618,7 @@ Item {
                 }
                 font.family: Theme.typography.labelSmall.family
                 font.pixelSize: 10
-                color: Theme.color.onSurfaceVariantColor
+                color: root.skin.inkFaint
             }
 
             Item { Layout.fillWidth: true }
@@ -674,7 +630,7 @@ Item {
                 text: "Reconnect"
                 font.family: Theme.typography.labelSmall.family
                 font.pixelSize: 10
-                color: Theme.color.primary
+                color: root.skin.accent
                 MouseArea {
                     anchors.fill: parent
                     anchors.margins: -6
@@ -691,7 +647,7 @@ Item {
                 text: App.splitActive ? "Unsplit" : "Split"
                 font.family: Theme.typography.labelSmall.family
                 font.pixelSize: 10
-                color: Theme.color.primary
+                color: root.skin.accent
                 MouseArea {
                     anchors.fill: parent
                     anchors.margins: -6
@@ -707,8 +663,8 @@ Item {
                 text: App.configPath()
                 font.family: Theme.typography.labelSmall.family
                 font.pixelSize: 10
-                color: Theme.color.onSurfaceVariantColor
-                opacity: 0.7
+                color: root.skin.inkFaint
+                opacity: 0.8
             }
         }
     }
@@ -730,12 +686,12 @@ Item {
         property string icon: ""
         property string tooltip: ""
         signal activated()
-        Layout.preferredWidth: 30
-        Layout.preferredHeight: 30
+        Layout.preferredWidth: 28
+        Layout.preferredHeight: 28
 
         Rectangle {
             anchors.fill: parent
-            radius: 6
+            radius: root.skin.radiusControl
             color: hibMouse.containsMouse ? root.hoverColor : "transparent"
         }
         Text {
@@ -743,7 +699,7 @@ Item {
             text: hib.icon
             font.family: Theme.iconFont.name
             font.pixelSize: 17
-            color: Theme.color.onSurfaceVariantColor
+            color: hibMouse.containsMouse ? root.skin.iconHover : root.skin.icon
         }
         MouseArea {
             id: hibMouse

@@ -94,6 +94,16 @@ def log_dir() -> Path:
     return state_dir() / "logs"
 
 
+def themes_dir() -> Path:
+    """User-editable theme catalog.
+
+    Deliberately under the application data directory and never under
+    ``~/.ssh``: themes are UI preferences, and the SSH directory is reserved
+    for files the ssh tools themselves read.
+    """
+    return state_dir() / "themes"
+
+
 def find_tssh() -> str | None:
     """Locate the tssh executable, preferring a user-local install."""
     override = os.environ.get("LITSSHP_TSSH")

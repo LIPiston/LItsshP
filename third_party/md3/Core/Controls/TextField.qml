@@ -27,8 +27,12 @@ Item {
     signal editingFinished()
     signal trailingIconClicked()
 
-    implicitWidth: 280
-    implicitHeight: 56 + (supportingText || errorText ? 20 : 0)
+    // Pebrel control metrics: a 40px field (the 32px button ladder plus room
+    // for the floating label), so forms stay compact without the label
+    // colliding with the text. Width is a minimum, not a fixed size — pages
+    // that need a narrower field set Layout.preferredWidth.
+    implicitWidth: 140
+    implicitHeight: 40 + (supportingText || errorText ? 18 : 0)
 
     // Theme Helpers
     property var _colors: Theme.color
@@ -77,8 +81,8 @@ Item {
     Rectangle {
         id: container
         width: parent.width
-        height: 56
-        radius: type === "filled" ? _shape.cornerExtraSmall : _shape.cornerExtraSmall
+        height: 40
+        radius: _shape.cornerControl
         
         color: _containerColor
         
@@ -115,8 +119,8 @@ Item {
         // Layout
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: leadingIcon ? 12 : 16
-            anchors.rightMargin: (trailingIcon || isPassword) ? 12 : 16
+            anchors.leftMargin: leadingIcon ? 10 : 12
+            anchors.rightMargin: (trailingIcon || isPassword) ? 10 : 12
             spacing: 0
 
             // Leading Icon
@@ -157,7 +161,7 @@ Item {
                     
                     // X position adjustment if leading icon exists? No, handled by RowLayout parent
                     
-                    font.pixelSize: control.isFloating ? 12 : 16
+                    font.pixelSize: control.isFloating ? 10 : 13
                     font.family: _typography.bodyLarge.family
                     font.weight: _typography.bodyLarge.weight
                     
@@ -178,13 +182,13 @@ Item {
                 TextInput {
                     id: textInput
                     anchors.fill: parent
-                    anchors.topMargin: type === "filled" ? (control.isFloating ? 24 : 0) : (control.isFloating ? 16 : 0)
-                    anchors.bottomMargin: type === "filled" ? (control.isFloating ? 8 : 0) : (control.isFloating ? 16 : 0)
+                    anchors.topMargin: type === "filled" ? (control.isFloating ? 22 : 0) : (control.isFloating ? 14 : 0)
+                    anchors.bottomMargin: type === "filled" ? (control.isFloating ? 6 : 0) : (control.isFloating ? 12 : 0)
                     verticalAlignment: control.isFloating ? TextInput.AlignBottom : TextInput.AlignVCenter
                     
                     text: control.text
                     color: _contentColor
-                    font.pixelSize: 16
+                    font.pixelSize: 12
                     font.family: _typography.bodyLarge.family
                     selectionColor: _colors.primary
                     selectedTextColor: _colors.onPrimaryColor
@@ -281,7 +285,7 @@ Item {
         
         text: control.error ? control.errorText : control.supportingText
         color: control.error ? _colors.error : _colors.onSurfaceVariantColor
-        font.pixelSize: 12
+        font.pixelSize: 10
         visible: text !== ""
     }
 }
