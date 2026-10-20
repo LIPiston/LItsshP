@@ -68,8 +68,22 @@ byte-identical, including comments, ordering, CRLF line endings and a UTF-8 BOM.
 
 ## Interface
 
-Everything is flat: one accent colour, hairline separators, no elevation or
-shadows. Material 3 components come from
+The look follows [Pebrel](https://github.com/Kuddev/pebrel): flush planes with
+no floating cards, one accent used only for selection and primary actions,
+hairline separators instead of borders, no elevation or shadows, and a compact
+radius ladder (4 chip / 6 control / 7 icon tile / 8 overlay / 14 launcher).
+Two theme families ship, each with a dark and a light member: **Catppuccin**
+(Mocha / Latte) and **Mono**, a greyscale pair in which states are separated by
+brightness rather than hue.
+
+Themes are plain YAML, seeded into the application data directory on first
+launch (`%APPDATA%\LItsshP\themes`) and editable from there — retune a colour,
+add a variant, or define a whole new family, then press **Reload** in Settings →
+Appearance. Nothing under `~/.ssh` is touched: that directory belongs to the
+ssh tools. A file that fails to parse is skipped and the reason is shown next to
+the button, so a typo degrades to the shipped palette instead of a broken
+window. The terminal palette is derived from the same YAML, so the session never
+looks pasted into the window. Components come from
 [material-components-qml](https://github.com/sudoevolve/material-components-qml.git),
 vendored under `third_party/md3`, with its C++ style singletons reimplemented in
 Python (`app/style.py`) so no C++ toolchain is needed.
@@ -324,11 +338,12 @@ app/
   pty_session.py     tssh process in a ConPTY; reader thread + GUI-side timer
   screen.py          pyte screen subclass: scrollback, alt screen, mouse modes
   terminal_model.py  grid → QImage renderer, key/mouse input, selection
-  terminal_theme.py  terminal palette derived from the Material scheme
+  terminal_theme.py  terminal palette derived from the active Pebrel theme
   sftp_client.py     batch sftp for metadata, PTY-driven transfers with progress
   tunnel.py          forwarding specs + supervised `tssh -N` processes
   keys.py            key listing/fingerprinting, ssh-keygen wrappers, known_hosts
-  style.py           Python port of the library's StyleManager / ColorHelper
+  theme.py           Pebrel palettes, skin tokens, colour math, radius ladder
+  style.py           StyleManager / ColorHelper singletons the QML library reads
   qml/               Main, HostSidebar, Workspace, TerminalPane, TransferWindow…
 third_party/md3/     vendored material-components-qml QML module
 ```

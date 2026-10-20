@@ -25,11 +25,12 @@ Python (app/)
   pty_session.py     tssh in a ConPTY, reader thread, GUI-side drain timer
   screen.py          pyte Screen subclass: scrollback, alt screen, mouse modes
   terminal_model.py  grid → QImage, key/mouse translation, selection, search, log
-  terminal_theme.py  terminal palette derived from the Material scheme
+  terminal_theme.py  terminal palette derived from the active Pebrel theme
   sftp_client.py     SFTP listing (batch) and transfers (ConPTY + meter scraping)
   tunnel.py          forward specs + one supervised `tssh -N` per host
   keys.py            key inventory, local fingerprints, ssh-keygen/keyscan wrappers
-  style.py           Python ports of md3's StyleManager / ColorHelper
+  theme.py           Pebrel palettes, skin tokens, colour math, radius ladder
+  style.py           md3's StyleManager / ColorHelper, resolved from theme.py
   main.py            entry point: singletons, image provider, window geometry
 
 third_party/md3/     vendored material-components-qml QML module
@@ -275,9 +276,76 @@ warning in the output, not the exit code, as failure.
 
 ## Design tokens
 
-The QML pages take colours from `Main.qml`'s flat tokens (`flatSurface`,
-`flatPanel`, `flatHover`, `flatSelected`, `hairline`, `radiusSmall`,
-`radiusMedium`) and from `Theme.color` of the md3 module. The terminal palette
-is derived from the same Material scheme by `terminal_theme.py`, which is what
-makes the window read as one surface rather than a themed shell around a black
-box.
+`app/theme.py` is the single source of truth. The catalog is **user-editable
+YAML** in the application data directory, `paths.themes_dir()` (that is
+`%APPDATA%/LItsshP/themes` on Windows, `~/.litsshp/themes` elsewhere) — never
+in `~/.ssh`, which is reserved for files the ssh tools themselves read. Two
+families ship, each with a dark and a light member:
+
+| family | dark | light |
+| --- | --- | --- |
+| `catppuccin` | Catppuccin Mocha | Catppuccin Latte |
+| `mono` | Mono Dark | Mono Light |
+
+The built-ins are seeded from string constants in `theme.py` on first launch
+and then never overwritten, so editing a file on disk wins. A file that fails
+to validate is skipped and reported through `load_errors()`; the built-in for
+that id still loads, so a typo degrades to the shipped palette instead of a
+blank window. Settings → Appearance → **Reload** re-reads the directory
+(`StyleManager.reloadThemes()`), and the button surfaces the first error.
+
+Each YAML file declares one *member*: `id`, `label`, `family`,
+`appearance` (`dark`/`light`), a `colors` mapping (shell, surface, foreground,
+muted, accent, selected, line, six semantic inks, frame) and a 16-entry
+`terminal.ansi` table. Members sharing a `family` id are paired, which is what
+lets "follow system" switch appearance without changing the user's family. The
+full schema is in the module docstring of `app/theme.py`.
+
+`StyleManager` (`app/style.py`) resolves the active family and appearance into
+three things:
+
+- `skin` — the chrome tokens: `shell`, `surface`, `panel`, `veil`,
+  `surfaceWash`, `hover`, `accent`, `accentSoft`, `ink` / `inkDim` / `inkFaint`,
+  `danger` / `ok` / `warn` / `info`, `hairline`, and the radius and row-height
+  ladder.
+- `currentScheme` (plus `lightScheme` / `darkScheme`) — the same palette mapped
+  onto the Material role names the vendored md3 components read. The names
+  survive so existing call sites keep working; the values are Pebrel's.
+- `paletteName` / `families` / `themeDir` / `themeErrors` — what the settings
+  picker draws its swatches from, where the YAML lives, and what failed to
+  parse. Swatches come from the resolved palettes, so a preview cannot show a
+  colour the theme will not use.
+
+QML reads `Theme.skin.*` for chrome and `Theme.color.*` for the md3 controls.
+`Main.qml`'s flat tokens (`flatSurface`, `flatPanel`, `flatHover`,
+`flatSelected`, `hairline`, `radiusSmall`, `radiusMedium`) are aliases of
+`Theme.skin` kept for the pages that already used them.
+
+Geometry is flush by default, matching Pebrel's built-in presets: the content
+card has radius 0 and no gutter, and the sidebar meets it at a single 1px
+hairline. The radius ladder is 4 (chip) / 6 (control) / 7 (icon tile) / 8
+(overlay) / 14 (launcher); rows are 32 (control) / 38 (dense) / 44 (row).
+
+Plane separation: a hand-written palette may declare `shell == surface`, which
+would flatten the window. `theme._planes()` darkens the *shell* by a few
+percent in that case rather than lifting the surface, because the surface is
+the terminal grid colour and must not move.
+
+Two derived colours need care because a YAML author can pick anything:
+
+- `accent_ink()` picks the glyph colour on a filled accent. Dark families reuse
+  the plane colour; light families use white. If neither reaches 4.5:1 — a
+  mid-luminance accent like Latte's `#7287fd` — it falls back to `DEEP_INK`
+  rather than washing the text out to grey.
+- `ink_dim` / `ink_faint` are built separately. Deriving both from the
+  palette's `muted` collapses the ink ladder on a monochrome palette, where the
+  greys are already close together, so `ink_faint` is blended toward the plane
+  and held at 3:1.
+
+Monochrome palettes have no hue to separate states with, so `mono` separates
+`danger` / `warn` / `ok` by brightness: danger is the loudest end of the ramp,
+ok the quietest.
+
+The terminal palette is derived from the same resolved palette by
+`terminal_theme.py`, which is what makes the window read as one surface rather
+than a themed shell around a black box.

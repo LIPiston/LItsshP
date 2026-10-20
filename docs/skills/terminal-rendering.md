@@ -65,8 +65,11 @@ screen; this is what `clear` does in many setups.
 Cells hold `pyte` attribute names (`red`, `brightblue`, or `#rrggbb` for
 256-colour). `TerminalModel._resolve` maps them to the current palette, so
 `applyTheme` only needs to swap the palette list and repaint — no screen
-re-parse. `terminal_theme.py` builds that palette from the Material scheme
-(`match`) or from a fixed classic set (`classic`).
+re-parse. `terminal_theme.py` builds that palette from the active Pebrel theme
+(`match`, via `app/theme.py`) or from a fixed classic set (`classic`). The
+16-entry ANSI table comes from the theme's own YAML file, so a family can tune
+its terminal hues alongside its chrome; bg/fg/cursor/selection are derived from
+the same palette.
 
 ## Input translation
 
@@ -129,8 +132,10 @@ binding would evaluate while the `Repeater` has no delegates and stay `null`.
 
 ## Changing colours or fonts
 
-1. Colours: `app/terminal_theme.py` (`build_palette`). Keep the ANSI hues
-   distinguishable; only bg/fg/cursor/selection should follow the theme.
+1. Colours: the 16 ANSI entries live in the theme's YAML (`terminal.ansi`);
+   `app/terminal_theme.py` (`build_palette`) derives bg/fg/cursor/selection from
+   the same palette. Keep the ANSI entries distinguishable against that
+   background — a monochrome family separates them by brightness.
 2. Fonts: `TerminalModel.setFont` recomputes cell metrics and calls
    `_update_grid`, which emits `gridChanged`. The `setFont` docstring notes why
    the signal is emitted explicitly: the viewport did not change, so

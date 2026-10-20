@@ -156,7 +156,12 @@ moves to `pending` and spawns `tssh -N` once the port is free.
 ## Settings keys
 
 `fontFamily`, `fontSize`, `fontFallback`, `theme` (`dark`/`light`/`system`),
-`seedColor`, `sidebarWidth`, `sidebarVisible`, `confirmClose`, `copyOnSelect`,
+`themeFamily` (`catppuccin`/`mono`, default `catppuccin`; the set is whatever
+the YAML catalog in the app data directory defines, so a hand-added family is
+accepted as-is and an unknown one normalizes back to `catppuccin`),
+`seedColor` (optional `#rrggbb` accent override; empty means
+"use the family's own accent"), `sidebarWidth`, `sidebarVisible`,
+`confirmClose`, `copyOnSelect`,
 `composerVisible`, `terminalTheme` (`match`/`classic`), `lastSession`,
 `sessionLog` (bool, default false), `autoReconnect` (bool, default true),
 `keepalive` (int seconds, default 30; `0` disables), `broadcastInput` (bool),

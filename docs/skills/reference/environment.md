@@ -26,8 +26,16 @@ needs them must pass a temp folder to the `keys` functions explicitly.
 | `~/.ssh/config` (+ `Include`s) | tssh / OpenSSH | hosts, credentials, all real configuration |
 | `~/.ssh/*` | OpenSSH | keys, `known_hosts`; the app reads and edits these through `keys.py` |
 | `%APPDATA%\LItsshP\state.json` | LItsshP | window geometry, UI preferences, snippets, last layout |
+| `%APPDATA%\LItsshP\themes\*.yaml` | LItsshP | the theme catalog: one file per appearance, seeded once from the built-ins and never overwritten |
 | `%APPDATA%\LItsshP\logs` | LItsshP | one file per session when session logging is enabled |
 | `%TEMP%\LItsshP` | LItsshP | fallback folder for downloads when the chosen destination is unwritable |
+
+Themes are UI preferences and live under the application data directory, never
+under `~/.ssh`: the SSH directory is reserved for files the ssh tools
+themselves read, and a theme file there would be one more thing to get wrong.
+`paths.themes_dir()` is the only place that resolves it; `LITSSHP_STATE` moves
+it along with the rest of the state, because it is derived from
+`paths.state_dir()`.
 
 `paths.home()` deliberately prefers `USERPROFILE` over `HOME` on Windows,
 because a Git Bash session exports `HOME=/c/Users/...`, which is not a valid
@@ -50,11 +58,16 @@ path is recorded on the session object for diagnostics.
 ## Python dependencies
 
 From `requirements.txt`: `PySide6>=6.7`, `pyte>=0.8.1`,
-`pywinpty>=2.0` (Windows only), `cryptography>=42`, `materialyoucolor>=2.0`.
+`pywinpty>=2.0` (Windows only), `cryptography>=42`, `materialyoucolor>=2.0`,
+`PyYAML>=6.0`.
 
-`materialyoucolor` is what replaces the C++ `StyleManager` in the vendored
-component library. There is no compiler step: `third_party/md3` is pure QML
-and the two singletons it expects are registered from `app/style.py`.
+`PyYAML` parses the theme catalog (`app/theme.py`). Without it the app still
+starts on the built-in palettes and the Settings sheet reports why the files on
+disk were ignored. `materialyoucolor` provides the HCT conversions
+`ColorHelper` exposes; the palettes themselves come from `app/theme.py`.
+Together with `app/style.py` they replace the C++ `StyleManager` the vendored
+component library expects. There is no compiler step: `third_party/md3` is pure
+QML and the two singletons it needs are registered from `app/style.py`.
 
 ## Verified toolchain
 
